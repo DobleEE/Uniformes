@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown, ChevronRight, CheckSquare, Square, ExternalLink } from 'lucide-react'
+import { ChevronDown, ChevronRight, CheckSquare, Square, ExternalLink, Wand2 } from 'lucide-react'
 import { useApi } from '../../hooks/useApi'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Card } from '../../components/ui/Card'
@@ -10,7 +10,7 @@ import { Button } from '../../components/ui/Button'
 import { PasswordConfirmModal } from '../../components/ui/PasswordConfirmModal'
 
 export function ProductionPage() {
-  const { get, patch } = useApi()
+  const { get, post, patch } = useApi()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
 
@@ -28,6 +28,14 @@ export function ProductionPage() {
     queryKey: ['pieces', expandedOrder],
     queryFn: () => get(`/api/orders/${expandedOrder}/pieces`),
     enabled: !!expandedOrder,
+  })
+
+  const generatePiecesMutation = useMutation({
+    mutationFn: (orderId: string) =>
+      post(`/api/orders/${orderId}/pieces/generate`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pieces', expandedOrder] })
+    },
   })
 
   const changeStatusMutation = useMutation({
@@ -151,8 +159,17 @@ export function ProductionPage() {
                     {piecesLoading ? (
                       <div className="py-8 text-center text-gray-400">Cargando piezas...</div>
                     ) : pieces.length === 0 ? (
-                      <div className="py-8 text-center text-gray-400">
-                        Sin piezas registradas para este pedido
+                      <div className="py-8 flex flex-col items-center gap-3 text-gray-400">
+                        <p className="text-sm">Sin piezas registradas para este pedido</p>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => generatePiecesMutation.mutate(order.id)}
+                          disabled={generatePiecesMutation.isPending}
+                        >
+                          <Wand2 className="h-4 w-4" />
+                          {generatePiecesMutation.isPending ? 'Generando...' : 'Generar piezas'}
+                        </Button>
                       </div>
                     ) : (
                       <div className="pt-4 space-y-4">
