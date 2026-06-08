@@ -10,6 +10,7 @@ import { Input } from '../../components/ui/Input'
 import { Badge } from '../../components/ui/Badge'
 import { Modal } from '../../components/ui/Modal'
 import { Table } from '../../components/ui/Table'
+import { PasswordConfirmModal } from '../../components/ui/PasswordConfirmModal'
 
 export function OrderDetailPage() {
   const { id } = useParams()
@@ -20,6 +21,9 @@ export function OrderDetailPage() {
   const [employeeModal, setEmployeeModal] = useState(false)
   const [itemForm, setItemForm] = useState({ uniform_type: '', quantity: '', price_per_unit: '' })
   const [empForm, setEmpForm] = useState({ name: '', department: '', position: '' })
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null)
+  const [statusConfirmOpen, setStatusConfirmOpen] = useState(false)
+  const [statusPwError, setStatusPwError] = useState('')
 
   const { data: order, isLoading } = useQuery({
     queryKey: ['orders', id],
@@ -33,8 +37,17 @@ export function OrderDetailPage() {
   })
 
   const statusMutation = useMutation({
-    mutationFn: (status: string) => patch(`/api/orders/${id}/status`, { status }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders', id] }),
+    mutationFn: ({ status, password }: { status: string; password: string }) =>
+      patch(`/api/orders/${id}/status`, { status, password }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders', id] })
+      setPendingStatus(null)
+      setStatusConfirmOpen(false)
+      setStatusPwError('')
+    },
+    onError: (err: any) => {
+      setStatusPwError(err?.message || 'Contraseña incorrecta o sin permisos suficientes')
+    },
   })
 
   const updateMutation = useMutation({
@@ -225,18 +238,46 @@ export function OrderDetailPage() {
               {statusOptions.map((s) => (
                 <button
                   key={s}
-                  onClick={() => statusMutation.mutate(s)}
-                  disabled={order.status === s}
+                  onClick={() => {
+                    if (order.status === s) return
+                    setPendingStatus(pendingStatus === s ? null : s)
+                  }}
                   className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                     order.status === s
-                      ? 'bg-primary-50 text-primary-700 font-medium'
+                      ? 'bg-primary-50 text-primary-700 font-medium cursor-default'
+                      : pendingStatus === s
+                      ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-300'
                       : 'text-gray-600 hover:bg-gray-50'
-                  } disabled:cursor-default`}
+                  }`}
                 >
                   <Badge status={s} />
                 </button>
               ))}
             </div>
+            {pendingStatus && pendingStatus !== order.status && (
+              <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
+                <p className="text-xs text-gray-500">
+                  Cambiando a: <span className="font-medium text-gray-700">{pendingStatus}</span>
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setPendingStatus(null)}
+                    className="flex-1"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => { setStatusPwError(''); setStatusConfirmOpen(true) }}
+                    className="flex-1"
+                  >
+                    Confirmar cambio
+                  </Button>
+                </div>
+              </div>
+            )}
           </Card>
         </div>
       </div>
@@ -270,6 +311,20 @@ export function OrderDetailPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Status change confirmation */}
+      <PasswordConfirmModal
+        open={statusConfirmOpen}
+        onClose={() => { setStatusConfirmOpen(false); setStatusPwError('') }}
+        onConfirm={(password) => {
+          if (pendingStatus) statusMutation.mutate({ status: pendingStatus, password })
+        }}
+        title="Confirmar cambio de estado"
+        description={`El pedido cambiará de "${order.status}" a "${pendingStatus}". Esta accion requiere autorización del administrador.`}
+        confirmLabel="Confirmar cambio"
+        isPending={statusMutation.isPending}
+        error={statusPwError}
+      />
     </div>
   )
 }
