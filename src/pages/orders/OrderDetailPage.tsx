@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Plus, Trash2, UserPlus, AlertTriangle, CheckCircle, FileDown } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, UserPlus, AlertTriangle, CheckCircle, FileDown, Truck, X } from 'lucide-react'
 import { useApi } from '../../hooks/useApi'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
+import { Select } from '../../components/ui/Select'
 import { Badge } from '../../components/ui/Badge'
 import { Modal } from '../../components/ui/Modal'
 import { Table } from '../../components/ui/Table'
@@ -25,6 +26,9 @@ export function OrderDetailPage() {
   const [pendingStatus, setPendingStatus] = useState<string | null>(null)
   const [statusConfirmOpen, setStatusConfirmOpen] = useState(false)
   const [statusPwError, setStatusPwError] = useState('')
+  const [poModal, setPoModal] = useState(false)
+  const [poSupplierId, setPoSupplierId] = useState('')
+  const [poRows, setPoRows] = useState([{ material_id: '', quantity: '', unit_price: '' }])
 
   const { data: order, isLoading } = useQuery({
     queryKey: ['orders', id],
@@ -35,6 +39,24 @@ export function OrderDetailPage() {
     queryKey: ['orders', id, 'check'],
     queryFn: () => get<any>(`/api/orders/${id}/check-materials`),
     enabled: !!order && order.order_items?.length > 0,
+  })
+
+  const { data: purchaseOrders = [] } = useQuery<any[]>({
+    queryKey: ['orders', id, 'purchase-orders'],
+    queryFn: () => get<any[]>(`/api/orders/${id}/purchase-orders`),
+    enabled: !!id,
+  })
+
+  const { data: suppliers = [] } = useQuery<any[]>({
+    queryKey: ['suppliers'],
+    queryFn: () => get<any[]>('/api/suppliers'),
+    enabled: poModal,
+  })
+
+  const { data: materials = [] } = useQuery<any[]>({
+    queryKey: ['materials'],
+    queryFn: () => get<any[]>('/api/materials'),
+    enabled: poModal,
   })
 
   const statusMutation = useMutation({
@@ -83,6 +105,23 @@ export function OrderDetailPage() {
     },
   })
 
+  const createPoMutation = useMutation({
+    mutationFn: (data: any) => post('/api/purchase-orders', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders', id, 'purchase-orders'] })
+      closePoModal()
+    },
+  })
+
+  const updatePoStatusMutation = useMutation({
+    mutationFn: ({ poId, status }: { poId: string; status: string }) =>
+      patch(`/api/purchase-orders/${poId}/status`, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders', id, 'purchase-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['inventory'] })
+    },
+  })
+
   const handleDownloadQuotation = async () => {
     setDownloading(true)
     try {
@@ -100,6 +139,24 @@ export function OrderDetailPage() {
     } finally {
       setDownloading(false)
     }
+  }
+
+  const closePoModal = () => {
+    setPoModal(false)
+    setPoSupplierId('')
+    setPoRows([{ material_id: '', quantity: '', unit_price: '' }])
+  }
+
+  const handleCreatePo = () => {
+    const items = poRows
+      .filter((r) => r.material_id && r.quantity)
+      .map((r) => ({
+        material_id: r.material_id,
+        quantity: Number(r.quantity),
+        unit_price: r.unit_price ? Number(r.unit_price) : undefined,
+      }))
+    if (!poSupplierId || items.length === 0) return
+    createPoMutation.mutate({ supplier_id: poSupplierId, order_id: id, items })
   }
 
   if (isLoading) return <div className="text-gray-400">Cargando...</div>
@@ -183,6 +240,80 @@ export function OrderDetailPage() {
               )}
             </Card>
           )}
+
+          {/* Purchase orders */}
+          <Card
+            title="Pedidos a proveedores"
+            action={
+              <Button size="sm" onClick={() => setPoModal(true)}>
+                <Plus className="h-3.5 w-3.5" /> Nueva orden
+              </Button>
+            }
+          >
+            {purchaseOrders.length === 0 ? (
+              <p className="text-sm text-gray-400">Sin pedidos a proveedores registrados</p>
+            ) : (
+              <div className="space-y-3">
+                {purchaseOrders.map((po: any) => (
+                  <div key={po.id} className="border border-gray-100 rounded-lg overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50">
+                      <div className="flex items-center gap-2">
+                        <Truck className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm font-medium text-gray-900">{po.suppliers?.name}</span>
+                        <Badge status={po.status} />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-gray-400 mr-1">
+                          {new Date(po.created_at).toLocaleDateString()}
+                        </span>
+                        {po.status === 'pendiente' && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => updatePoStatusMutation.mutate({ poId: po.id, status: 'enviada' })}
+                              disabled={updatePoStatusMutation.isPending}
+                            >
+                              Enviada
+                            </Button>
+                            <button
+                              onClick={() => {
+                                if (confirm('¿Cancelar esta orden de compra?'))
+                                  updatePoStatusMutation.mutate({ poId: po.id, status: 'cancelada' })
+                              }}
+                              className="p-1 text-gray-400 hover:text-red-500 rounded"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </>
+                        )}
+                        {po.status === 'enviada' && (
+                          <Button
+                            size="sm"
+                            onClick={() => updatePoStatusMutation.mutate({ poId: po.id, status: 'recibida' })}
+                            disabled={updatePoStatusMutation.isPending}
+                          >
+                            Recibida
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="divide-y divide-gray-50">
+                      {po.purchase_order_items?.map((item: any) => (
+                        <div key={item.id} className="px-4 py-2 flex items-center justify-between text-sm">
+                          <span className="text-gray-700">{item.materials?.name}</span>
+                          <span className="text-gray-500">
+                            {item.quantity} {item.materials?.unit}
+                            {item.unit_price ? ` · $${Number(item.unit_price).toLocaleString()}` : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
 
           {/* Employees */}
           <Card
@@ -341,6 +472,88 @@ export function OrderDetailPage() {
             <Button type="submit" disabled={addEmployeeMutation.isPending}>Agregar</Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Create purchase order modal */}
+      <Modal open={poModal} onClose={closePoModal} title="Nueva orden de compra">
+        <div className="space-y-4">
+          <Select
+            label="Proveedor *"
+            value={poSupplierId}
+            onChange={(e) => setPoSupplierId(e.target.value)}
+            options={suppliers.map((s: any) => ({ value: s.id, label: s.name }))}
+          />
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-gray-700">Materiales *</label>
+              <button
+                type="button"
+                onClick={() => setPoRows((r) => [...r, { material_id: '', quantity: '', unit_price: '' }])}
+                className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+              >
+                + Agregar fila
+              </button>
+            </div>
+            <div className="space-y-2">
+              {poRows.map((row, i) => (
+                <div key={i} className="grid grid-cols-[1fr_80px_90px_24px] gap-2 items-center">
+                  <Select
+                    value={row.material_id}
+                    onChange={(e) =>
+                      setPoRows((rows) => rows.map((r, j) => j === i ? { ...r, material_id: e.target.value } : r))
+                    }
+                    options={materials.map((m: any) => ({ value: m.id, label: `${m.name} (${m.unit})` }))}
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Cant."
+                    value={row.quantity}
+                    onChange={(e) =>
+                      setPoRows((rows) => rows.map((r, j) => j === i ? { ...r, quantity: e.target.value } : r))
+                    }
+                    min="0.01"
+                    step="0.01"
+                  />
+                  <Input
+                    type="number"
+                    placeholder="$ Unit."
+                    value={row.unit_price}
+                    onChange={(e) =>
+                      setPoRows((rows) => rows.map((r, j) => j === i ? { ...r, unit_price: e.target.value } : r))
+                    }
+                    min="0"
+                    step="0.01"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPoRows((rows) => rows.filter((_, j) => j !== i))}
+                    disabled={poRows.length === 1}
+                    className="text-gray-300 hover:text-red-500 disabled:opacity-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {createPoMutation.isError && (
+            <p className="text-sm text-red-500">
+              {(createPoMutation.error as any)?.message || 'Error al crear la orden'}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={closePoModal}>Cancelar</Button>
+            <Button
+              onClick={handleCreatePo}
+              disabled={createPoMutation.isPending || !poSupplierId || poRows.every((r) => !r.material_id)}
+            >
+              {createPoMutation.isPending ? 'Creando...' : 'Crear orden'}
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Status change confirmation */}

@@ -8,6 +8,7 @@ import {
   Truck,
   Scissors,
   LogOut,
+  ClipboardList,
 } from 'lucide-react'
 import { useAuthStore, type UserRole } from '../../stores/authStore'
 
@@ -60,6 +61,12 @@ const navItems: NavItem[] = [
     label: 'Produccion',
     icon: Scissors,
     roles: ['admin', 'confeccion'],
+  },
+  {
+    to: '/cotizaciones',
+    label: 'Cotizaciones web',
+    icon: ClipboardList,
+    roles: ['admin', 'ventas'],
   },
 ]
 
