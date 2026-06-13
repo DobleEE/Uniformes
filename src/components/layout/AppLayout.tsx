@@ -6,10 +6,10 @@ import { Sidebar } from './Sidebar'
 import { MobileNavSheet } from './MobileNavSheet'
 
 export function AppLayout() {
-  const token = useAuthStore((s) => s.token)
+  const user = useAuthStore((s) => s.user)
   const [navOpen, setNavOpen] = useState(false)
 
-  if (!token) return <Navigate to="/login" replace />
+  if (!user) return <Navigate to="/login" replace />
 
   return (
     <div className="min-h-screen bg-gray-50">
