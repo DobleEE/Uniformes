@@ -49,7 +49,7 @@ export function DashboardPage() {
     },
     {
       label: 'Ingresos del mes',
-      value: data
+      value: data?.monthly_revenue != null
         ? `$${data.monthly_revenue.toLocaleString()}`
         : '-',
       icon: TrendingUp,
