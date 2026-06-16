@@ -76,7 +76,7 @@ export function DashboardPage() {
   return (
     <div>
       <PageHeader
-        title="Dashboard"
+        title="Panel de control"
         subtitle="Resumen general del sistema"
       />
 
