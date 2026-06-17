@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { motion } from 'framer-motion'
-import { fadeInItem, fadeInList } from '../../lib/motion'
+import { fadeInItem } from '../../lib/motion'
 
 interface Column<T> {
   key: string

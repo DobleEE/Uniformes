@@ -1,7 +1,7 @@
 import type { ComponentType, ReactNode } from 'react'
 
 interface EmptyStateProps {
-  icon: ComponentType<{ className?: string }>
+  icon: ComponentType<{ className?: string; style?: React.CSSProperties }>
   title: string
   description?: string
   action?: ReactNode

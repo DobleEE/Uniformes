@@ -239,10 +239,6 @@ export function OrderDetailPage() {
   if (isLoading) return <div className="text-gray-400">Cargando...</div>
   if (!order) return <div className="text-gray-400">Pedido no encontrado</div>
 
-  const statusOptions = [
-    'cotizacion', 'aprobado', 'anticipo_pagado', 'en_produccion', 'terminado', 'entregado', 'cancelado',
-  ]
-
   return (
     <div>
       <button

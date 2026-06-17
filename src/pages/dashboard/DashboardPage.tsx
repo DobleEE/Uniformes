@@ -28,7 +28,7 @@ interface DashboardData {
 interface KpiCardProps {
   label: string
   value: number | string
-  icon: React.ComponentType<{ className?: string }>
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>
   iconBg: string
   iconColor: string
   isAlert?: boolean
