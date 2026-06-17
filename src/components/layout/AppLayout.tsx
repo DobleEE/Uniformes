@@ -4,6 +4,7 @@ import { Menu } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { Sidebar } from './Sidebar'
 import { MobileNavSheet } from './MobileNavSheet'
+import { ToastProvider } from '../../contexts/ToastContext'
 
 export function AppLayout() {
   const user = useAuthStore((s) => s.user)
@@ -13,39 +14,46 @@ export function AppLayout() {
   if (!user) return <Navigate to="/login" replace />
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sidebar — solo desktop */}
-      <Sidebar
-        collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed((v) => !v)}
-      />
-
-      {/* Top bar — solo movil */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-30 h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4">
-        <img
-          src="/images/logo.png"
-          alt="Uniformes D'Johanna"
-          className="h-10 w-auto object-contain"
+    <ToastProvider>
+      <div className="min-h-screen" style={{ background: 'var(--color-bg)' }}>
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onToggle={() => setSidebarCollapsed((v) => !v)}
         />
-        <button
-          onClick={() => setNavOpen(true)}
-          className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+
+        {/* Top bar móvil */}
+        <div
+          className="md:hidden fixed top-0 left-0 right-0 z-30 h-14 flex items-center justify-between px-4"
+          style={{
+            background: 'var(--color-surface)',
+            borderBottom: '1px solid var(--color-border)',
+          }}
         >
-          <Menu className="h-6 w-6" />
-        </button>
+          <img
+            src="/images/logo.png"
+            alt="Uniformes D'Johanna"
+            className="h-9 w-auto object-contain"
+          />
+          <button
+            onClick={() => setNavOpen(true)}
+            className="p-2 rounded-lg transition-colors hover:bg-[var(--color-surface-2)]"
+            style={{ color: 'var(--color-text-secondary)' }}
+            aria-label="Abrir menú"
+          >
+            <Menu className="h-6 w-6" />
+          </button>
+        </div>
+
+        <MobileNavSheet open={navOpen} onClose={() => setNavOpen(false)} />
+
+        <main
+          className={`transition-[margin-left] duration-300 ease-in-out p-4 sm:p-6 lg:p-8 pt-18 md:pt-8 ${
+            sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'
+          }`}
+        >
+          <Outlet />
+        </main>
       </div>
-
-      {/* Sheet de navegacion — solo movil */}
-      <MobileNavSheet open={navOpen} onClose={() => setNavOpen(false)} />
-
-      {/* Contenido principal */}
-      <main
-        className={`transition-[margin-left] duration-300 ease-in-out p-4 sm:p-6 lg:p-8 pt-18 md:pt-8 ${
-          sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'
-        }`}
-      >
-        <Outlet />
-      </main>
-    </div>
+    </ToastProvider>
   )
 }

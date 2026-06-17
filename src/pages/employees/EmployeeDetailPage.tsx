@@ -114,7 +114,7 @@ export function EmployeeDetailPage() {
                 name="notes"
                 rows={3}
                 defaultValue={measurements.notes || ''}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none resize-none"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:border-accent focus:shadow-[0_0_0_3px_rgba(79,82,214,0.12)] outline-none resize-none"
               />
             </div>
             <div className="flex justify-end">

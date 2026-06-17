@@ -1,18 +1,33 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown, ChevronRight, CheckSquare, Square, ExternalLink, Wand2 } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { ChevronDown, ChevronRight, CheckSquare, Square, ExternalLink, Wand2, Scissors } from 'lucide-react'
 import { useApi } from '../../hooks/useApi'
+import { useToast } from '../../contexts/ToastContext'
 import { PageHeader } from '../../components/layout/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
+import { StatusBadge } from '../../components/ui/StatusBadge'
 import { PasswordConfirmModal } from '../../components/ui/PasswordConfirmModal'
+import { EmptyState } from '../../components/ui/EmptyState'
+import { fadeInItem, fadeInList } from '../../lib/motion'
+
+const STAGE_COLORS: Record<string, string> = {
+  pendiente:   '#9CA3AF',
+  por_terminar:'#F59E0B',
+  corte:       '#F59E0B',
+  costura:     '#6366F1',
+  bordado:     '#8B5CF6',
+  control_qa:  '#EF4444',
+  empaque:     '#10B981',
+  terminada:   '#059669',
+}
 
 export function ProductionPage() {
   const { get, post, patch } = useApi()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
   const [selectedPieces, setSelectedPieces] = useState<string[]>([])
@@ -31,11 +46,12 @@ export function ProductionPage() {
   })
 
   const generatePiecesMutation = useMutation({
-    mutationFn: (orderId: string) =>
-      post(`/api/orders/${orderId}/pieces/generate`, {}),
+    mutationFn: (orderId: string) => post(`/api/orders/${orderId}/pieces/generate`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pieces', expandedOrder] })
+      toast.success('Piezas generadas correctamente')
     },
+    onError: (err: any) => toast.error(err?.message || 'Error al generar piezas'),
   })
 
   const changeStatusMutation = useMutation({
@@ -49,6 +65,7 @@ export function ProductionPage() {
       setSelectedPieces([])
       setConfirmOpen(false)
       setPwError('')
+      toast.success(`${selectedPieces.length} pieza${selectedPieces.length !== 1 ? 's' : ''} marcadas como terminadas`)
     },
     onError: (err: any) => {
       setPwError(err?.message || 'Contraseña incorrecta o sin permisos suficientes')
@@ -72,8 +89,7 @@ export function ProductionPage() {
   }
 
   const pendingPieces = pieces.filter((p: any) => p.status === 'por_terminar')
-  const allPendingSelected =
-    pendingPieces.length > 0 && selectedPieces.length === pendingPieces.length
+  const allPendingSelected = pendingPieces.length > 0 && selectedPieces.length === pendingPieces.length
 
   const toggleAllPending = () => {
     if (allPendingSelected) {
@@ -89,63 +105,87 @@ export function ProductionPage() {
   return (
     <div>
       <PageHeader
-        title="Produccion"
-        subtitle={`${orders.length} pedido${orders.length !== 1 ? 's' : ''} en produccion`}
+        title="Producción"
+        subtitle={`${orders.length} pedido${orders.length !== 1 ? 's' : ''} en producción`}
       />
 
       {isLoading ? (
-        <Card>
-          <div className="py-12 text-center text-gray-400">Cargando...</div>
-        </Card>
-      ) : orders.length === 0 ? (
-        <Card>
-          <div className="py-12 text-center text-gray-400">No hay pedidos en produccion</div>
-        </Card>
-      ) : (
         <div className="space-y-3">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="skeleton h-20 rounded-[10px]" />
+          ))}
+        </div>
+      ) : orders.length === 0 ? (
+        <div style={{ border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-card)', borderRadius: 10 }}>
+          <EmptyState
+            icon={Scissors}
+            title="Sin pedidos en producción"
+            description="Cuando un pedido esté en producción, aparecerá aquí."
+          />
+        </div>
+      ) : (
+        <motion.div
+          variants={fadeInList}
+          initial="hidden"
+          animate="visible"
+          className="space-y-3"
+        >
           {orders.map((order: any) => {
             const isExpanded = expandedOrder === order.id
             return (
-              <div key={order.id} className="bg-white rounded-xl border border-gray-200">
+              <motion.div
+                key={order.id}
+                variants={fadeInItem}
+                className="bg-white rounded-[10px] overflow-hidden"
+                style={{ border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-card)' }}
+              >
                 {/* Order header row */}
                 <div
-                  className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-gray-50 rounded-xl transition-colors"
+                  className="flex items-center justify-between px-5 py-4 cursor-pointer transition-colors"
+                  style={{ borderBottom: isExpanded ? '1px solid var(--color-border)' : 'none' }}
                   onClick={() => toggleOrder(order.id)}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-2)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                 >
                   <div className="flex items-center gap-3">
-                    {isExpanded
-                      ? <ChevronDown className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                      : <ChevronRight className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                    }
+                    <div style={{ color: 'var(--color-text-muted)' }}>
+                      {isExpanded
+                        ? <ChevronDown className="h-4 w-4" />
+                        : <ChevronRight className="h-4 w-4" />
+                      }
+                    </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-gray-900">
+                        <span className="font-semibold text-[15px]" style={{ color: 'var(--color-text-primary)' }}>
                           {order.clients?.company_name}
                         </span>
-                        <span className="font-mono text-xs text-gray-400">
-                          #{order.id.slice(0, 8)}
+                        <span className="text-mono text-[12px]" style={{ color: 'var(--color-text-muted)' }}>
+                          #{order.id.slice(0, 8).toUpperCase()}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-500 mt-0.5">
+                      <p className="text-caption mt-0.5">
                         {order.order_items
-                          ?.map((i: any) => `${i.quantity}x ${i.uniform_type}`)
-                          .join(' · ') || 'Sin items'}
+                          ?.map((i: any) => `${i.quantity}× ${i.uniform_type || i.piece_type}`)
+                          .join(' · ') || 'Sin ítems'}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     {order.delivery_date && (
-                      <span className="hidden sm:block text-sm text-gray-500">
-                        Entrega: {new Date(order.delivery_date).toLocaleDateString('es-MX')}
+                      <span className="hidden sm:block text-[13px]" style={{ color: 'var(--color-text-secondary)' }}>
+                        Entrega: {new Date(order.delivery_date).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
                       </span>
                     )}
-                    <Badge status={order.status} />
+                    <StatusBadge status={order.status} size="sm" />
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
                         navigate(`/pedidos/${order.id}`)
                       }}
-                      className="p-1.5 text-gray-400 hover:text-primary-600 rounded-lg transition-colors"
+                      className="p-1.5 rounded-lg transition-colors"
+                      style={{ color: 'var(--color-text-muted)' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-surface-2)'; e.currentTarget.style.color = 'var(--color-accent)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-muted)' }}
                       title="Ver detalle del pedido"
                     >
                       <ExternalLink className="h-4 w-4" />
@@ -154,117 +194,148 @@ export function ProductionPage() {
                 </div>
 
                 {/* Expanded pieces view */}
-                {isExpanded && (
-                  <div className="px-6 pb-6 border-t border-gray-100">
-                    {piecesLoading ? (
-                      <div className="py-8 text-center text-gray-400">Cargando piezas...</div>
-                    ) : pieces.length === 0 ? (
-                      <div className="py-8 flex flex-col items-center gap-3 text-gray-400">
-                        <p className="text-sm">Sin piezas registradas para este pedido</p>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => generatePiecesMutation.mutate(order.id)}
-                          disabled={generatePiecesMutation.isPending}
-                        >
-                          <Wand2 className="h-4 w-4" />
-                          {generatePiecesMutation.isPending ? 'Generando...' : 'Generar piezas'}
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="pt-4 space-y-4">
-                        {/* Progress + actions bar */}
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex items-center gap-4 text-sm">
-                            <span className="text-gray-500">
-                              <span className="font-semibold text-emerald-600">{donePieces}</span>
-                              {' / '}
-                              <span className="font-medium">{pieces.length}</span>
-                              {' terminadas'}
-                            </span>
-                            {selectedPieces.length > 0 && (
-                              <span className="text-primary-600 font-medium">
-                                {selectedPieces.length} seleccionada{selectedPieces.length !== 1 ? 's' : ''}
-                              </span>
-                            )}
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1, transition: { duration: 0.2, ease: 'easeOut' } }}
+                      exit={{ height: 0, opacity: 0, transition: { duration: 0.15, ease: 'easeIn' } }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-5 pb-5 pt-4">
+                        {piecesLoading ? (
+                          <div className="space-y-2 py-2">
+                            {Array.from({ length: 3 }).map((_, i) => (
+                              <div key={i} className="skeleton h-12 w-full rounded-lg" />
+                            ))}
                           </div>
-                          <div className="flex items-center gap-2">
-                            {pendingPieces.length > 0 && (
-                              <Button size="sm" variant="ghost" onClick={toggleAllPending}>
-                                {allPendingSelected ? 'Deseleccionar todo' : 'Seleccionar pendientes'}
-                              </Button>
-                            )}
+                        ) : pieces.length === 0 ? (
+                          <div className="py-6 flex flex-col items-center gap-3" style={{ color: 'var(--color-text-muted)' }}>
+                            <p className="text-[14px]">Sin piezas registradas para este pedido</p>
                             <Button
                               size="sm"
-                              disabled={selectedPieces.length === 0}
-                              onClick={() => { setPwError(''); setConfirmOpen(true) }}
+                              variant="secondary"
+                              onClick={() => generatePiecesMutation.mutate(order.id)}
+                              loading={generatePiecesMutation.isPending}
                             >
-                              <CheckSquare className="h-4 w-4" />
-                              Marcar terminadas ({selectedPieces.length})
+                              <Wand2 className="h-4 w-4" />
+                              Generar piezas
                             </Button>
                           </div>
-                        </div>
-
-                        {/* Progress bar */}
-                        <div className="w-full bg-gray-100 rounded-full h-2">
-                          <div
-                            className="bg-emerald-500 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${progress}%` }}
-                          />
-                        </div>
-
-                        {/* Pieces grid */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-                          {pieces.map((piece: any) => {
-                            const isTerminada = piece.status === 'terminada'
-                            const isSelected = selectedPieces.includes(piece.id)
-                            return (
-                              <div
-                                key={piece.id}
-                                onClick={() => !isTerminada && togglePiece(piece.id)}
-                                className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                                  isTerminada
-                                    ? 'bg-emerald-50 border-emerald-200 opacity-70'
-                                    : isSelected
-                                    ? 'bg-primary-50 border-primary-300 cursor-pointer'
-                                    : 'bg-white border-gray-200 cursor-pointer hover:border-gray-300 hover:bg-gray-50'
-                                }`}
-                              >
-                                {isTerminada ? (
-                                  <CheckSquare className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-                                ) : isSelected ? (
-                                  <CheckSquare className="h-4 w-4 text-primary-600 flex-shrink-0" />
-                                ) : (
-                                  <Square className="h-4 w-4 text-gray-300 flex-shrink-0" />
+                        ) : (
+                          <div className="space-y-4">
+                            {/* Progress + actions bar */}
+                            <div className="flex items-center justify-between gap-4 flex-wrap">
+                              <div className="flex items-center gap-4 text-[13px]">
+                                <span style={{ color: 'var(--color-text-secondary)' }}>
+                                  <span className="font-semibold text-mono" style={{ color: '#059669' }}>{donePieces}</span>
+                                  {' / '}
+                                  <span className="font-medium text-mono">{pieces.length}</span>
+                                  {' terminadas'}
+                                </span>
+                                {selectedPieces.length > 0 && (
+                                  <span className="font-medium" style={{ color: 'var(--color-accent)' }}>
+                                    {selectedPieces.length} seleccionada{selectedPieces.length !== 1 ? 's' : ''}
+                                  </span>
                                 )}
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-medium text-gray-900">
-                                    Pieza #{piece.piece_number}
-                                  </p>
-                                  {piece.employee_name && (
-                                    <p className="text-xs text-gray-500 truncate">
-                                      {piece.employee_name}
-                                    </p>
-                                  )}
-                                  {piece.uniform_type && (
-                                    <p className="text-xs text-gray-400 truncate">
-                                      {piece.uniform_type}
-                                    </p>
-                                  )}
-                                </div>
-                                <Badge status={piece.status} />
                               </div>
-                            )
-                          })}
-                        </div>
+                              <div className="flex items-center gap-2">
+                                {pendingPieces.length > 0 && (
+                                  <Button size="sm" variant="ghost" onClick={toggleAllPending}>
+                                    {allPendingSelected ? 'Deseleccionar todo' : 'Seleccionar pendientes'}
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  disabled={selectedPieces.length === 0}
+                                  onClick={() => { setPwError(''); setConfirmOpen(true) }}
+                                >
+                                  <CheckSquare className="h-4 w-4" />
+                                  Marcar terminadas ({selectedPieces.length})
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Progress bar */}
+                            <div
+                              className="w-full h-2 rounded-full overflow-hidden"
+                              style={{ background: 'var(--color-surface-2)' }}
+                            >
+                              <motion.div
+                                className="h-full rounded-full"
+                                style={{ background: '#059669' }}
+                                initial={{ width: 0 }}
+                                animate={{ width: `${progress}%` }}
+                                transition={{ duration: 0.4, ease: 'easeOut' }}
+                              />
+                            </div>
+
+                            {/* Pieces grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                              <AnimatePresence mode="popLayout">
+                                {pieces.map((piece: any) => {
+                                  const isTerminada = piece.status === 'terminada'
+                                  const isSelected = selectedPieces.includes(piece.id)
+                                  const stageColor = STAGE_COLORS[piece.status] || '#9CA3AF'
+
+                                  return (
+                                    <motion.div
+                                      key={piece.id}
+                                      layout
+                                      initial={{ opacity: 0, scale: 0.95 }}
+                                      animate={{ opacity: 1, scale: 1, transition: { duration: 0.15 } }}
+                                      exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.12 } }}
+                                      onClick={() => !isTerminada && togglePiece(piece.id)}
+                                      className="flex items-center gap-2.5 p-3 rounded-lg transition-all duration-100"
+                                      style={{
+                                        border: isTerminada
+                                          ? '1px solid #A7F3D0'
+                                          : isSelected
+                                          ? `1px solid ${stageColor}60`
+                                          : '1px solid var(--color-border)',
+                                        background: isTerminada
+                                          ? '#F0FDF4'
+                                          : isSelected
+                                          ? `${stageColor}12`
+                                          : 'var(--color-surface)',
+                                        cursor: isTerminada ? 'default' : 'pointer',
+                                        borderLeft: `3px solid ${stageColor}`,
+                                      }}
+                                    >
+                                      {isTerminada ? (
+                                        <CheckSquare className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                                      ) : isSelected ? (
+                                        <CheckSquare className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--color-accent)' }} />
+                                      ) : (
+                                        <Square className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--color-border-strong)' }} />
+                                      )}
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-[13px] font-semibold text-mono" style={{ color: 'var(--color-text-primary)' }}>
+                                          #{piece.piece_number}
+                                        </p>
+                                        {piece.employee_name && (
+                                          <p className="text-caption truncate">{piece.employee_name}</p>
+                                        )}
+                                        {piece.uniform_type && (
+                                          <p className="text-caption truncate">{piece.uniform_type}</p>
+                                        )}
+                                      </div>
+                                      <StatusBadge status={piece.status} size="sm" />
+                                    </motion.div>
+                                  )
+                                })}
+                              </AnimatePresence>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
             )
           })}
-        </div>
+        </motion.div>
       )}
 
       <PasswordConfirmModal
@@ -274,7 +345,7 @@ export function ProductionPage() {
           changeStatusMutation.mutate({ pieceIds: selectedPieces, password })
         }
         title="Confirmar cambio de estado"
-        description={`Se marcarán ${selectedPieces.length} pieza${selectedPieces.length !== 1 ? 's' : ''} como terminadas. Esta accion requiere autorización del administrador.`}
+        description={`Se marcarán ${selectedPieces.length} pieza${selectedPieces.length !== 1 ? 's' : ''} como terminadas. Requiere autorización del administrador.`}
         confirmLabel="Confirmar terminadas"
         isPending={changeStatusMutation.isPending}
         error={pwError}

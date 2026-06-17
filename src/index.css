@@ -13,7 +13,7 @@
   --text-2xl: 1.75rem;    /* 28px */
   --text-3xl: 2rem;       /* 32px */
 
-  /* Rojo D'Johanna */
+  /* Rojo D'Johanna — identidad de marca */
   --color-primary-50: #fff1f2;
   --color-primary-100: #ffdfe3;
   --color-primary-200: #ffc5cb;
@@ -26,23 +26,99 @@
   --color-primary-900: #841426;
   --color-primary-950: #490610;
 
-  /* Oliva/Dorado D'Johanna */
-  --color-accent-50: #f9f8f1;
-  --color-accent-100: #f0eedd;
-  --color-accent-200: #e0dabb;
-  --color-accent-300: #ccc494;
-  --color-accent-400: #b7ac6c;
-  --color-accent-500: #9e9856;
-  --color-accent-600: #8a8a5a;
-  --color-accent-700: #706e46;
-  --color-accent-800: #5c5a3b;
-  --color-accent-900: #4d4c33;
-  --color-accent-950: #2a291a;
+  /* Oliva/Dorado D'Johanna — color secundario de marca */
+  --color-gold-50: #f9f8f1;
+  --color-gold-100: #f0eedd;
+  --color-gold-200: #e0dabb;
+  --color-gold-300: #ccc494;
+  --color-gold-400: #b7ac6c;
+  --color-gold-500: #9e9856;
+  --color-gold-600: #8a8a5a;
+  --color-gold-700: #706e46;
+  --color-gold-800: #5c5a3b;
+  --color-gold-900: #4d4c33;
+  --color-gold-950: #2a291a;
+
+  /* Acento ERP — índigo para elementos interactivos */
+  --color-accent: #4F52D6;
+  --color-accent-light: #EEEFFE;
+  --color-accent-dark: #3538A8;
+}
+
+:root {
+  /* Fondos */
+  --color-bg:        #F5F6FA;
+  --color-surface:   #FFFFFF;
+  --color-surface-2: #EEF0F6;
+  --color-border:    #DDE0EA;
+  --color-border-strong: #C8CCD8;
+
+  /* Texto */
+  --color-text-primary:   #1A1D2E;
+  --color-text-secondary: #5A6080;
+  --color-text-muted:     #8890A4;
+
+  /* Estados de pedido */
+  --status-cotizacion:      #6B7280;
+  --status-aprobado:        #4F52D6;
+  --status-anticipo-pagado: #7C3AED;
+  --status-en-produccion:   #D97706;
+  --status-terminado:       #059669;
+  --status-entregado:       #0D9E6B;
+  --status-cancelado:       #DC2626;
+
+  /* Etapas de producción */
+  --stage-pendiente:  #9CA3AF;
+  --stage-corte:      #F59E0B;
+  --stage-costura:    #6366F1;
+  --stage-bordado:    #8B5CF6;
+  --stage-control-qa: #EF4444;
+  --stage-empaque:    #10B981;
+  --stage-entregado:  #059669;
+
+  /* Sombras */
+  --shadow-card:    0 1px 3px rgba(26,29,46,0.06), 0 1px 2px rgba(26,29,46,0.04);
+  --shadow-dropdown:0 4px 16px rgba(26,29,46,0.10), 0 2px 4px rgba(26,29,46,0.06);
+  --shadow-modal:   0 20px 60px rgba(26,29,46,0.14), 0 4px 12px rgba(26,29,46,0.08);
 }
 
 body {
   margin: 0;
-  background-color: #f8fafc;
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Etiquetas de texto con propósito */
+.text-label   { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-muted); }
+.text-caption { font-size: 12px; font-weight: 400; color: var(--color-text-secondary); }
+.text-mono    { font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace; }
+
+/* Shimmer skeleton */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #EEF0F6 25%, #E2E5F0 50%, #EEF0F6 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+/* Shake para error en formulario */
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20%     { transform: translateX(-5px); }
+  40%     { transform: translateX(5px); }
+  60%     { transform: translateX(-3px); }
+  80%     { transform: translateX(3px); }
+}
+.shake { animation: shake 0.35s ease-in-out; }
+
+/* Focus visible — outline consistente entre browsers */
+*:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(79, 82, 214, 0.25);
 }
