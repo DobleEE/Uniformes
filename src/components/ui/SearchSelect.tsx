@@ -48,7 +48,7 @@ export function SearchSelect({ label, value, onChange, options, placeholder, req
   return (
     <div className="relative">
       {label && (
-        <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+        <label className="block text-[13px] font-medium mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>{label}</label>
       )}
       <div className="relative">
         <input
@@ -58,7 +58,8 @@ export function SearchSelect({ label, value, onChange, options, placeholder, req
           onBlur={handleBlur}
           placeholder={open ? 'Buscar...' : (placeholder || '')}
           required={required && !value}
-          className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none"
+          className="w-full h-10 px-3 pr-8 border rounded-lg text-[14px] bg-white outline-none transition-all border-[var(--color-border-strong)] focus:border-accent focus:shadow-[0_0_0_3px_rgba(79,82,214,0.12)]"
+          style={{ color: 'var(--color-text-primary)' }}
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
           {value && !open && (
@@ -71,20 +72,26 @@ export function SearchSelect({ label, value, onChange, options, placeholder, req
       </div>
 
       {open && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+        <div
+          className="absolute z-50 top-full left-0 right-0 mt-1 bg-white rounded-lg max-h-52 overflow-y-auto"
+          style={{ border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-dropdown)' }}
+        >
           {filtered.length === 0 ? (
-            <p className="px-3 py-2.5 text-sm text-gray-400">Sin resultados</p>
+            <p className="px-3 py-2.5 text-[13px] text-caption">Sin resultados</p>
           ) : (
             filtered.map((o) => (
               <button
                 key={o.value}
                 type="button"
                 onMouseDown={() => select(o)}
-                className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                className="w-full text-left px-3 py-2 text-[13px] transition-colors"
+                style={
                   o.value === value
-                    ? 'bg-primary-50 text-primary-700 font-medium'
-                    : 'text-gray-900 hover:bg-gray-50'
-                }`}
+                    ? { background: 'var(--color-accent-light)', color: 'var(--color-accent)', fontWeight: 500 }
+                    : { color: 'var(--color-text-primary)' }
+                }
+                onMouseEnter={(e) => { if (o.value !== value) e.currentTarget.style.background = 'var(--color-surface-2)' }}
+                onMouseLeave={(e) => { if (o.value !== value) e.currentTarget.style.background = '' }}
               >
                 {o.label}
               </button>

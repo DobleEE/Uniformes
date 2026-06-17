@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, Trash2, Layers, Scissors, X } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useApi } from '../../hooks/useApi'
+import { useToast } from '../../contexts/ToastContext'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -9,6 +11,8 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Modal } from '../../components/ui/Modal'
 import { SearchSelect } from '../../components/ui/SearchSelect'
+import { EmptyState } from '../../components/ui/EmptyState'
+import { fadeInItem, fadeInList } from '../../lib/motion'
 
 type Tab = 'telas' | 'modelos'
 
@@ -46,9 +50,23 @@ function groupFabrics(fabrics: any[]): FabricGroup[] {
   return Array.from(map.values())
 }
 
+const PIECE_LABEL: Record<string, string> = {
+  blusa: 'Blusa',
+  chaleco: 'Chaleco',
+  pantalon: 'Pantalón',
+  'Ch/P': 'Ch/P',
+}
+const PIECE_COLOR: Record<string, { bg: string; text: string }> = {
+  blusa:    { bg: '#EFF6FF', text: '#2563EB' },
+  chaleco:  { bg: '#F5F3FF', text: '#7C3AED' },
+  pantalon: { bg: '#FFFBEB', text: '#D97706' },
+  'Ch/P':   { bg: '#F0FDFA', text: '#0D9488' },
+}
+
 export function CatalogPage() {
   const { get, post, put, del } = useApi()
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [tab, setTab] = useState<Tab>('telas')
 
   // ── Telas ──────────────────────────────────────────────────────────────
@@ -105,14 +123,20 @@ export function CatalogPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['materials'] })
       closeTelaModal()
+      toast.success(editingTelaGroup ? 'Tela actualizada' : 'Tela creada')
     },
+    onError: (err: any) => toast.error(err?.message || 'Error al guardar la tela'),
   })
 
   const deleteTelaMutation = useMutation({
     mutationFn: async (ids: string[]) => {
       for (const id of ids) await del(`/api/materials/${id}`)
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['materials'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['materials'] })
+      toast.success('Tela eliminada')
+    },
+    onError: (err: any) => toast.error(err?.message || 'Error al eliminar'),
   })
 
   function openTelaModal(group?: FabricGroup) {
@@ -209,12 +233,18 @@ export function CatalogPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['models'] })
       closeModeloModal()
+      toast.success(editingModelo ? 'Modelo actualizado' : 'Modelo creado')
     },
+    onError: (err: any) => toast.error(err?.message || 'Error al guardar el modelo'),
   })
 
   const deleteModeloMutation = useMutation({
     mutationFn: (id: string) => del(`/api/models/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['models'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['models'] })
+      toast.success('Modelo eliminado')
+    },
+    onError: (err: any) => toast.error(err?.message || 'Error al eliminar'),
   })
 
   const toggleModeloMutation = useMutation({
@@ -268,28 +298,24 @@ export function CatalogPage() {
   const chalecoOptions = toOptions(fabrics.filter((m: any) => m.piece_type === 'chaleco' || m.piece_type === 'Ch/P'))
   const pantaloneOptions = toOptions(fabrics.filter((m: any) => m.piece_type === 'pantalon' || m.piece_type === 'Ch/P'))
 
-  // ── Componente de grupo de tela ────────────────────────────────────────
-  const PIECE_LABEL: Record<string, string> = {
-    blusa: 'Blusa',
-    chaleco: 'Chaleco',
-    pantalon: 'Pantalón',
-    'Ch/P': 'Ch/P',
-  }
-  const PIECE_COLOR: Record<string, string> = {
-    blusa: 'bg-blue-50 text-blue-700',
-    chaleco: 'bg-purple-50 text-purple-700',
-    pantalon: 'bg-amber-50 text-amber-700',
-    'Ch/P': 'bg-teal-50 text-teal-700',
-  }
-
+  // ── FabricGroupRow ─────────────────────────────────────────────────────
   function FabricGroupRow({ group }: { group: FabricGroup }) {
     const pieceType = group.items[0]?.piece_type
+    const pc = PIECE_COLOR[pieceType]
     return (
-      <div className="py-3 flex items-center justify-between gap-4 border-b border-gray-50 last:border-0">
+      <div
+        className="py-3 flex items-center justify-between gap-4 group"
+        style={{ borderBottom: '1px solid var(--color-border)' }}
+      >
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <span className="font-medium text-gray-900 w-36 flex-shrink-0">{group.name}</span>
-          {pieceType && (
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${PIECE_COLOR[pieceType] || 'bg-gray-100 text-gray-600'}`}>
+          <span className="font-medium w-36 flex-shrink-0 text-[14px]" style={{ color: 'var(--color-text-primary)' }}>
+            {group.name}
+          </span>
+          {pieceType && pc && (
+            <span
+              className="text-[11px] px-2 py-0.5 rounded-full font-medium flex-shrink-0"
+              style={{ background: pc.bg, color: pc.text }}
+            >
               {PIECE_LABEL[pieceType] || pieceType}
             </span>
           )}
@@ -297,17 +323,21 @@ export function CatalogPage() {
             {group.items.map((item: any) => (
               <span
                 key={item.id}
-                className="text-xs px-2.5 py-0.5 bg-gray-100 text-gray-600 rounded-full"
+                className="text-[11px] px-2.5 py-0.5 rounded-full"
+                style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-secondary)' }}
               >
                 {item.color || '—'}
               </span>
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={() => openTelaModal(group)}
-            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+            className="p-1.5 rounded-lg transition-colors"
+            style={{ color: 'var(--color-text-muted)' }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-2)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
             <Pencil className="h-3.5 w-3.5" />
           </button>
@@ -316,7 +346,8 @@ export function CatalogPage() {
               if (confirm(`¿Eliminar "${group.name}" con todos sus colores?`))
                 deleteTelaMutation.mutate(group.items.map((i: any) => i.id))
             }}
-            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+            className="p-1.5 rounded-lg transition-colors hover:bg-red-50 hover:text-red-600"
+            style={{ color: 'var(--color-text-muted)' }}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -324,6 +355,11 @@ export function CatalogPage() {
       </div>
     )
   }
+
+  const TABS: { key: Tab; label: string; icon: typeof Scissors }[] = [
+    { key: 'telas',   label: 'Telas',   icon: Scissors },
+    { key: 'modelos', label: 'Modelos', icon: Layers },
+  ]
 
   return (
     <div>
@@ -338,157 +374,218 @@ export function CatalogPage() {
       />
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 border-b border-gray-200">
-        <button
-          onClick={() => setTab('telas')}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-            tab === 'telas'
-              ? 'border-primary-500 text-primary-700'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Scissors className="h-4 w-4 inline-block mr-1.5 -mt-0.5" />
-          Telas
-        </button>
-        <button
-          onClick={() => setTab('modelos')}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-            tab === 'modelos'
-              ? 'border-primary-500 text-primary-700'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Layers className="h-4 w-4 inline-block mr-1.5 -mt-0.5" />
-          Modelos
-        </button>
+      <div
+        className="flex gap-1 mb-6 relative"
+        style={{ borderBottom: '1px solid var(--color-border)' }}
+      >
+        {TABS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className="relative px-4 py-2.5 text-[14px] font-medium transition-colors flex items-center gap-1.5"
+            style={{
+              color: tab === key ? 'var(--color-accent)' : 'var(--color-text-muted)',
+              borderBottom: 'none',
+            }}
+          >
+            <Icon className="h-4 w-4" />
+            {label}
+            {tab === key && (
+              <motion.div
+                layoutId="tab-indicator"
+                className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full"
+                style={{ background: 'var(--color-accent)' }}
+                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+              />
+            )}
+          </button>
+        ))}
       </div>
 
-      {/* ── TELAS ── */}
-      {tab === 'telas' && (
-        <div className="space-y-4">
-          <Card
-            title="Telas de Línea"
-            action={<span className="text-xs text-gray-400 font-normal">{linea.length} telas</span>}
+      {/* Tab content with AnimatePresence */}
+      <AnimatePresence mode="wait">
+        {tab === 'telas' && (
+          <motion.div
+            key="telas"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0, transition: { duration: 0.18, ease: 'easeOut' } }}
+            exit={{ opacity: 0, y: -4, transition: { duration: 0.12 } }}
+            className="space-y-4"
           >
-            {linea.length === 0 ? (
-              <p className="text-sm text-gray-400 py-4 text-center">Sin telas de línea registradas</p>
-            ) : (
-              <div className="divide-y-0">
-                {linea.map((group) => (
-                  <FabricGroupRow key={group.name} group={group} />
-                ))}
+            <Card
+              title="Telas de Línea"
+              action={<span className="text-[12px] font-normal" style={{ color: 'var(--color-text-muted)' }}>{linea.length} telas</span>}
+            >
+              {linea.length === 0 ? (
+                <p className="text-[13px] py-4 text-center" style={{ color: 'var(--color-text-muted)' }}>
+                  Sin telas de línea registradas
+                </p>
+              ) : (
+                <motion.div variants={fadeInList} initial="hidden" animate="visible">
+                  {linea.map((group) => (
+                    <motion.div key={group.name} variants={fadeInItem}>
+                      <FabricGroupRow group={group} />
+                    </motion.div>
+                  ))}
+                </motion.div>
+              )}
+            </Card>
+
+            {Object.entries(groupedTemporada)
+              .sort(([a], [b]) => b.localeCompare(a))
+              .map(([key, groups]) => {
+                const [s, y] = key.split('-')
+                return (
+                  <Card
+                    key={key}
+                    title={`Telas de Temporada · ${seasonLabel(s, Number(y))}`}
+                    action={<span className="text-[12px] font-normal" style={{ color: 'var(--color-text-muted)' }}>{groups.length} telas</span>}
+                  >
+                    <motion.div variants={fadeInList} initial="hidden" animate="visible">
+                      {groups.map((group) => (
+                        <motion.div key={group.name} variants={fadeInItem}>
+                          <FabricGroupRow group={group} />
+                        </motion.div>
+                      ))}
+                    </motion.div>
+                  </Card>
+                )
+              })}
+
+            {fabrics.length === 0 && (
+              <div style={{ border: '1px solid var(--color-border)', borderRadius: 10, boxShadow: 'var(--shadow-card)' }}>
+                <EmptyState
+                  icon={Scissors}
+                  title="Sin telas registradas"
+                  description="Agrega la primera tela usando el botón superior."
+                  action={
+                    <Button size="sm" onClick={() => openTelaModal()}>
+                      <Plus className="h-4 w-4" /> Nueva tela
+                    </Button>
+                  }
+                />
               </div>
             )}
-          </Card>
+          </motion.div>
+        )}
 
-          {Object.entries(groupedTemporada)
-            .sort(([a], [b]) => b.localeCompare(a))
-            .map(([key, groups]) => {
-              const [s, y] = key.split('-')
-              return (
-                <Card
-                  key={key}
-                  title={`Telas de Temporada · ${seasonLabel(s, Number(y))}`}
-                  action={<span className="text-xs text-gray-400 font-normal">{groups.length} telas</span>}
-                >
-                  {groups.map((group) => (
-                    <FabricGroupRow key={group.name} group={group} />
-                  ))}
-                </Card>
-              )
-            })}
-
-          {fabrics.length === 0 && (
-            <Card>
-              <div className="text-center py-10 text-gray-400">
-                <Scissors className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                <p className="font-medium">Sin telas registradas</p>
-                <p className="text-sm mt-1">Agrega la primera tela usando el botón superior.</p>
+        {tab === 'modelos' && (
+          <motion.div
+            key="modelos"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0, transition: { duration: 0.18, ease: 'easeOut' } }}
+            exit={{ opacity: 0, y: -4, transition: { duration: 0.12 } }}
+            className="space-y-3"
+          >
+            {modelos.length === 0 ? (
+              <div style={{ border: '1px solid var(--color-border)', borderRadius: 10, boxShadow: 'var(--shadow-card)' }}>
+                <EmptyState
+                  icon={Layers}
+                  title="Sin modelos registrados"
+                  description="Crea el primer modelo para empezar a ofrecer combinaciones."
+                  action={
+                    <Button size="sm" onClick={() => openModeloModal()}>
+                      <Plus className="h-4 w-4" /> Nuevo modelo
+                    </Button>
+                  }
+                />
               </div>
-            </Card>
-          )}
-        </div>
-      )}
-
-      {/* ── MODELOS ── */}
-      {tab === 'modelos' && (
-        <div className="space-y-3">
-          {modelos.length === 0 ? (
-            <Card>
-              <div className="text-center py-10 text-gray-400">
-                <Layers className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                <p className="font-medium">Sin modelos registrados</p>
-                <p className="text-sm mt-1">Crea el primer modelo para empezar a ofrecer combinaciones.</p>
-              </div>
-            </Card>
-          ) : (
-            <Card>
-              <div className="divide-y divide-gray-100">
-                {modelos.map((m: any) => (
-                  <div key={m.id} className="py-4 flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-4 min-w-0">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center">
-                        <span className="text-primary-700 font-bold text-sm">#{m.number}</span>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-gray-900">Modelo #{m.number}</span>
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                            {seasonLabel(m.season, m.season_year)}
+            ) : (
+              <Card>
+                <motion.div variants={fadeInList} initial="hidden" animate="visible">
+                  {modelos.map((m: any) => (
+                    <motion.div
+                      key={m.id}
+                      variants={fadeInItem}
+                      className="py-4 flex items-start justify-between gap-4 group"
+                      style={{ borderBottom: '1px solid var(--color-border)' }}
+                    >
+                      <div className="flex items-start gap-4 min-w-0">
+                        <div
+                          className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
+                          style={{ background: 'var(--color-accent-light)' }}
+                        >
+                          <span className="font-bold text-[13px]" style={{ color: 'var(--color-accent)' }}>
+                            #{m.number}
                           </span>
-                          {!m.active && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">Inactivo</span>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-[14px]" style={{ color: 'var(--color-text-primary)' }}>
+                              Modelo #{m.number}
+                            </span>
+                            <span
+                              className="text-[11px] px-2 py-0.5 rounded-full"
+                              style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-secondary)' }}
+                            >
+                              {seasonLabel(m.season, m.season_year)}
+                            </span>
+                            {!m.active && (
+                              <span
+                                className="text-[11px] px-2 py-0.5 rounded-full"
+                                style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-muted)' }}
+                              >
+                                Inactivo
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-3">
+                            {[
+                              { label: 'Blusa',    fabric: m.blusa_material },
+                              { label: 'Chaleco',  fabric: m.chaleco_material },
+                              { label: 'Pantalón', fabric: m.pantalon_material },
+                            ].map(({ label, fabric }) => (
+                              <div key={label} className="text-[12px]">
+                                <span style={{ color: 'var(--color-text-muted)' }}>{label}: </span>
+                                {fabric
+                                  ? <span className="font-medium" style={{ color: 'var(--color-text-primary)' }}>{fabric.name}{fabric.color ? ` · ${fabric.color}` : ''}</span>
+                                  : <span style={{ color: 'var(--color-border-strong)', fontStyle: 'italic' }}>—</span>
+                                }
+                              </div>
+                            ))}
+                          </div>
+                          {m.notes && (
+                            <p className="text-[12px] mt-1" style={{ color: 'var(--color-text-muted)' }}>{m.notes}</p>
                           )}
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-3">
-                          {[
-                            { label: 'Blusa', fabric: m.blusa_material },
-                            { label: 'Chaleco', fabric: m.chaleco_material },
-                            { label: 'Pantalón', fabric: m.pantalon_material },
-                          ].map(({ label, fabric }) => (
-                            <div key={label} className="text-xs">
-                              <span className="text-gray-400">{label}: </span>
-                              {fabric
-                                ? <span className="text-gray-700 font-medium">{fabric.name}{fabric.color ? ` · ${fabric.color}` : ''}</span>
-                                : <span className="text-gray-300 italic">—</span>
-                              }
-                            </div>
-                          ))}
-                        </div>
-                        {m.notes && <p className="text-xs text-gray-400 mt-1">{m.notes}</p>}
                       </div>
-                    </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => toggleModeloMutation.mutate({ id: m.id, active: !m.active })}
-                        className={`text-xs px-2 py-1 rounded-full font-medium transition-colors ${
-                          m.active
-                            ? 'bg-green-50 text-green-700 hover:bg-green-100'
-                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                        }`}
-                      >
-                        {m.active ? 'Activo' : 'Inactivo'}
-                      </button>
-                      <button
-                        onClick={() => openModeloModal(m)}
-                        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => { if (confirm(`¿Eliminar Modelo #${m.number}?`)) deleteModeloMutation.mutate(m.id) }}
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-        </div>
-      )}
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => toggleModeloMutation.mutate({ id: m.id, active: !m.active })}
+                          className="text-[11px] px-2 py-1 rounded-full font-medium transition-colors"
+                          style={
+                            m.active
+                              ? { background: '#F0FDF4', color: '#059669' }
+                              : { background: 'var(--color-surface-2)', color: 'var(--color-text-muted)' }
+                          }
+                        >
+                          {m.active ? 'Activo' : 'Inactivo'}
+                        </button>
+                        <button
+                          onClick={() => openModeloModal(m)}
+                          className="p-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                          style={{ color: 'var(--color-text-muted)' }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-2)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => { if (confirm(`¿Eliminar Modelo #${m.number}?`)) deleteModeloMutation.mutate(m.id) }}
+                          className="p-1.5 rounded-lg transition-colors hover:bg-red-50 hover:text-red-600 opacity-0 group-hover:opacity-100"
+                          style={{ color: 'var(--color-text-muted)' }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              </Card>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Modal Tela ── */}
       <Modal open={telaModal} onClose={closeTelaModal} title={editingTelaGroup ? 'Editar tela' : 'Nueva tela'}>
@@ -500,7 +597,7 @@ export function CatalogPage() {
             required
           />
           {telaFormError && (
-            <p className="text-sm text-red-500 -mt-2">{telaFormError}</p>
+            <p className="text-[13px] text-red-500 -mt-2">{telaFormError}</p>
           )}
 
           <Select
@@ -553,7 +650,9 @@ export function CatalogPage() {
 
           {/* Colores dinámicos */}
           <div>
-            <label className="text-sm font-medium text-gray-700 block mb-2">Colores disponibles</label>
+            <label className="text-[13px] font-medium block mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+              Colores disponibles
+            </label>
             <div className="space-y-2">
               {telaForm.colors.map((c, i) => (
                 <div key={i} className="flex items-center gap-2">
@@ -567,7 +666,10 @@ export function CatalogPage() {
                     <button
                       type="button"
                       onClick={() => removeColor(i)}
-                      className="p-1.5 text-gray-300 hover:text-red-500 flex-shrink-0 mt-0.5"
+                      className="p-1.5 flex-shrink-0 mt-0.5 transition-colors"
+                      style={{ color: 'var(--color-border-strong)' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = '#DC2626')}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-border-strong)')}
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -578,7 +680,10 @@ export function CatalogPage() {
             <button
               type="button"
               onClick={addColor}
-              className="mt-2 text-xs text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
+              className="mt-2 text-[12px] font-medium flex items-center gap-1 transition-colors"
+              style={{ color: 'var(--color-accent)' }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.75')}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
             >
               <Plus className="h-3.5 w-3.5" /> Agregar color
             </button>
@@ -586,7 +691,7 @@ export function CatalogPage() {
 
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="secondary" onClick={closeTelaModal}>Cancelar</Button>
-            <Button type="submit" disabled={saveTelasMutation.isPending}>
+            <Button type="submit" loading={saveTelasMutation.isPending}>
               {editingTelaGroup ? 'Guardar cambios' : 'Agregar tela'}
             </Button>
           </div>
@@ -621,7 +726,9 @@ export function CatalogPage() {
           </div>
 
           <div className="space-y-3">
-            <p className="text-sm font-medium text-gray-700">Combinación de telas</p>
+            <p className="text-[13px] font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+              Combinación de telas
+            </p>
             <SearchSelect
               label="Tela para Blusa / Camisa"
               value={modeloForm.blusa_material_id}
@@ -646,18 +753,21 @@ export function CatalogPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+            <label className="block text-[13px] font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+              Observaciones
+            </label>
             <textarea
               value={modeloForm.notes}
               onChange={(e) => setModeloForm({ ...modeloForm, notes: e.target.value })}
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none resize-none"
+              className="w-full px-3 py-2 border rounded-lg text-[14px] bg-white outline-none transition-all resize-none border-[var(--color-border-strong)] focus:border-accent focus:shadow-[0_0_0_3px_rgba(79,82,214,0.12)]"
+              style={{ color: 'var(--color-text-primary)' }}
             />
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="secondary" onClick={closeModeloModal}>Cancelar</Button>
-            <Button type="submit" disabled={saveModeloMutation.isPending}>
+            <Button type="submit" loading={saveModeloMutation.isPending}>
               {editingModelo ? 'Guardar cambios' : 'Crear modelo'}
             </Button>
           </div>

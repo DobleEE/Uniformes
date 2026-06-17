@@ -16,56 +16,57 @@ export function MobileNavSheet({ open, onClose }: MobileNavSheetProps) {
     <>
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
           onClick={onClose}
         />
       )}
 
       <div
-        className={`fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl md:hidden transition-transform duration-300 ease-in-out ${
+        className={`fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl shadow-2xl md:hidden transition-transform duration-300 ease-in-out ${
           open ? 'translate-y-0' : 'translate-y-full'
         }`}
+        style={{ background: 'var(--color-surface)', borderTop: '1px solid var(--color-border)' }}
       >
-        {/* Handle */}
         <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-gray-300" />
+          <div className="w-10 h-1 rounded-full" style={{ background: 'var(--color-border-strong)' }} />
         </div>
 
-        {/* User info */}
-        <div className="px-5 py-3 border-b border-gray-100">
-          <p className="text-sm font-medium text-gray-900 truncate">{user?.email}</p>
-          <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
+        <div className="px-5 py-3" style={{ borderBottom: '1px solid var(--color-border)' }}>
+          <p className="text-[14px] font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>
+            {user?.email}
+          </p>
+          <p className="text-[12px] capitalize" style={{ color: 'var(--color-text-muted)' }}>
+            {user?.role}
+          </p>
         </div>
 
-        {/* Nav items */}
         <nav className="px-3 py-2 max-h-[60vh] overflow-y-auto">
           {visibleItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               onClick={onClose}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-primary-50 text-primary-700'
-                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                }`
+              className="flex items-center gap-3 px-4 py-3 rounded-lg text-[14px] font-medium transition-colors"
+              style={({ isActive }) =>
+                isActive
+                  ? { background: 'var(--color-accent-light)', color: 'var(--color-accent)' }
+                  : { color: 'var(--color-text-secondary)' }
               }
             >
-              <item.icon className="h-6 w-6 flex-shrink-0" />
+              <item.icon className="h-5 w-5 flex-shrink-0" />
               {item.label}
             </NavLink>
           ))}
         </nav>
 
-        {/* Logout */}
-        <div className="px-3 pt-2 pb-8 border-t border-gray-100">
+        <div className="px-3 pt-2 pb-8" style={{ borderTop: '1px solid var(--color-border)' }}>
           <button
             onClick={() => { logout(); onClose() }}
-            className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"
+            className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-[14px] font-medium transition-colors hover:bg-red-50 hover:text-red-600"
+            style={{ color: 'var(--color-text-secondary)' }}
           >
-            <LogOut className="h-6 w-6" />
-            Cerrar sesion
+            <LogOut className="h-5 w-5" />
+            Cerrar sesión
           </button>
         </div>
       </div>

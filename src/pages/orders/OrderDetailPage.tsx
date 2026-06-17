@@ -1,14 +1,15 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Plus, Pencil, Trash2, UserPlus, AlertTriangle, CheckCircle, FileDown, Truck, X } from 'lucide-react'
+import { ArrowLeft, Plus, Pencil, Trash2, UserPlus, AlertTriangle, CheckCircle, FileDown, Truck, X, Check } from 'lucide-react'
 import { useApi } from '../../hooks/useApi'
+import { useToast } from '../../contexts/ToastContext'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
-import { Badge } from '../../components/ui/Badge'
+import { StatusBadge } from '../../components/ui/StatusBadge'
 import { Modal } from '../../components/ui/Modal'
 import { Table } from '../../components/ui/Table'
 import { PasswordConfirmModal } from '../../components/ui/PasswordConfirmModal'
@@ -18,6 +19,7 @@ export function OrderDetailPage() {
   const navigate = useNavigate()
   const { get, post, put, patch, del, download } = useApi()
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [downloading, setDownloading] = useState(false)
   const [itemModal, setItemModal] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
@@ -89,6 +91,7 @@ export function OrderDetailPage() {
       setPendingStatus(null)
       setStatusConfirmOpen(false)
       setStatusPwError('')
+      toast.success('Estado del pedido actualizado')
     },
     onError: (err: any) => {
       setStatusPwError(err?.message || 'Contraseña incorrecta o sin permisos suficientes')
@@ -98,6 +101,7 @@ export function OrderDetailPage() {
   const updateMutation = useMutation({
     mutationFn: (data: any) => put(`/api/orders/${id}`, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders', id] }),
+    onError: (err: any) => toast.error(err?.message || 'Error al guardar'),
   })
 
   const emptyItemForm = { piece_type: '', fabric_id: '', model_id: '', quantity: '', price_per_unit: '', item_notes: '' }
@@ -133,7 +137,9 @@ export function OrderDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['orders', id] })
       queryClient.invalidateQueries({ queryKey: ['orders', id, 'check'] })
       closeItemModal()
+      toast.success('Ítem agregado')
     },
+    onError: (err: any) => toast.error(err?.message || 'Error al agregar ítem'),
   })
 
   const updateItemMutation = useMutation({
@@ -142,7 +148,9 @@ export function OrderDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['orders', id] })
       queryClient.invalidateQueries({ queryKey: ['orders', id, 'check'] })
       closeItemModal()
+      toast.success('Ítem actualizado')
     },
+    onError: (err: any) => toast.error(err?.message || 'Error al actualizar ítem'),
   })
 
   const deleteItemMutation = useMutation({
@@ -151,9 +159,11 @@ export function OrderDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['orders', id] })
       queryClient.invalidateQueries({ queryKey: ['orders', id, 'check'] })
       setDeleteItemError('')
+      toast.success('Ítem eliminado')
     },
     onError: (err: any) => {
       setDeleteItemError(err?.message || 'Error al eliminar el ítem. Intenta de nuevo.')
+      toast.error(err?.message || 'Error al eliminar el ítem')
     },
   })
 
@@ -163,7 +173,9 @@ export function OrderDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['orders', id] })
       setEmployeeModal(false)
       setEmpForm({ name: '', department: '', position: '' })
+      toast.success('Empleado agregado')
     },
+    onError: (err: any) => toast.error(err?.message || 'Error al agregar empleado'),
   })
 
   const createPoMutation = useMutation({
@@ -171,16 +183,20 @@ export function OrderDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders', id, 'purchase-orders'] })
       closePoModal()
+      toast.success('Orden de compra creada')
     },
+    onError: (err: any) => toast.error(err?.message || 'Error al crear la orden'),
   })
 
   const updatePoStatusMutation = useMutation({
     mutationFn: ({ poId, status }: { poId: string; status: string }) =>
       patch(`/api/purchase-orders/${poId}/status`, { status }),
-    onSuccess: () => {
+    onSuccess: (_, { status }) => {
       queryClient.invalidateQueries({ queryKey: ['orders', id, 'purchase-orders'] })
       queryClient.invalidateQueries({ queryKey: ['inventory'] })
+      toast.success(status === 'recibida' ? 'OC marcada como recibida — inventario actualizado' : `OC actualizada`)
     },
+    onError: (err: any) => toast.error(err?.message || 'Error al actualizar la OC'),
   })
 
   const handleDownloadQuotation = async () => {
@@ -196,7 +212,7 @@ export function OrderDetailPage() {
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
     } catch (err: any) {
-      alert(err?.message || 'Error al generar la cotización')
+      toast.error(err?.message || 'Error al generar la cotización')
     } finally {
       setDownloading(false)
     }
@@ -239,7 +255,7 @@ export function OrderDetailPage() {
       <PageHeader
         title={`Pedido #${order.id.slice(0, 8)}`}
         subtitle={order.clients?.company_name}
-        action={<Badge status={order.status} />}
+        action={<StatusBadge status={order.status} />}
       />
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -341,7 +357,7 @@ export function OrderDetailPage() {
                       { key: 'quantity_needed', header: 'Necesario' },
                       { key: 'quantity_available', header: 'Disponible' },
                       { key: 'shortage', header: 'Faltante', render: (r: any) => r.shortage > 0 ? <span className="text-red-600 font-medium">{r.shortage} {r.unit}</span> : '-' },
-                      { key: 'sufficient', header: 'Estado', render: (r: any) => r.sufficient ? <Badge status="recibida" /> : <Badge status="cancelado" /> },
+                      { key: 'sufficient', header: 'Estado', render: (r: any) => r.sufficient ? <StatusBadge status="recibida" /> : <StatusBadge status="cancelado" /> },
                     ]}
                     data={materialCheck.checks || []}
                   />
@@ -369,7 +385,7 @@ export function OrderDetailPage() {
                       <div className="flex items-center gap-2">
                         <Truck className="h-4 w-4 text-gray-400" />
                         <span className="text-sm font-medium text-gray-900">{po.suppliers?.name}</span>
-                        <Badge status={po.status} />
+                        <StatusBadge status={po.status} />
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs text-gray-400 mr-1">
@@ -441,7 +457,7 @@ export function OrderDetailPage() {
                 {
                   key: 'measurements', header: 'Medidas', render: (r: any) =>
                     r.measurements?.length > 0
-                      ? <Badge status="recibida" />
+                      ? <StatusBadge status="recibida" />
                       : <span className="text-xs text-gray-400">Pendiente</span>
                 },
               ]}
@@ -539,7 +555,7 @@ export function OrderDetailPage() {
               <div>
                 <p className="text-gray-500 mb-1">Información adicional</p>
                 <textarea
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:shadow-[0_0_0_3px_rgba(79,82,214,0.12)] resize-none"
                   rows={3}
                   placeholder="Notas, especificaciones, ajustes..."
                   defaultValue={order.additional_info || ''}
@@ -564,51 +580,116 @@ export function OrderDetailPage() {
             </Button>
           </div>
 
-          <Card title="Cambiar estado">
-            <div className="space-y-2">
-              {statusOptions.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => {
-                    if (order.status === s) return
-                    setPendingStatus(pendingStatus === s ? null : s)
-                  }}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                    order.status === s
-                      ? 'bg-primary-50 text-primary-700 font-medium cursor-default'
-                      : pendingStatus === s
-                      ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-300'
-                      : 'text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  <Badge status={s} />
-                </button>
-              ))}
-            </div>
-            {pendingStatus && pendingStatus !== order.status && (
-              <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
-                <p className="text-xs text-gray-500">
-                  Cambiando a: <span className="font-medium text-gray-700">{pendingStatus}</span>
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => setPendingStatus(null)}
-                    className="flex-1"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => { setStatusPwError(''); setStatusConfirmOpen(true) }}
-                    className="flex-1"
-                  >
-                    Confirmar cambio
-                  </Button>
+          <Card title="Estado del pedido">
+            {(() => {
+              const STATUS_FLOW = [
+                { key: 'cotizacion',      label: 'Cotización',      color: '#6B7280' },
+                { key: 'aprobado',        label: 'Aprobado',        color: '#4F52D6' },
+                { key: 'anticipo_pagado', label: 'Anticipo pagado', color: '#7C3AED' },
+                { key: 'en_produccion',   label: 'En producción',   color: '#D97706' },
+                { key: 'terminado',       label: 'Terminado',       color: '#059669' },
+                { key: 'entregado',       label: 'Entregado',       color: '#0D9E6B' },
+              ]
+              const currentIdx = STATUS_FLOW.findIndex((s) => s.key === order.status)
+              return (
+                <div className="space-y-4">
+                  {/* Timeline */}
+                  <div className="relative">
+                    {/* Connecting line */}
+                    <div
+                      className="absolute top-3.5 left-3.5 right-3.5 h-0.5"
+                      style={{ background: 'var(--color-border)' }}
+                    />
+                    <div className="relative flex justify-between">
+                      {STATUS_FLOW.map((s, idx) => {
+                        const isPast    = idx < currentIdx
+                        const isCurrent = idx === currentIdx
+                        const isFuture  = idx > currentIdx
+                        return (
+                          <div key={s.key} className="flex flex-col items-center gap-1.5" style={{ flex: 1 }}>
+                            <div
+                              className="w-7 h-7 rounded-full flex items-center justify-center z-10 transition-all duration-300"
+                              style={{
+                                background: isFuture ? 'var(--color-surface-2)' : s.color,
+                                border: isCurrent ? `3px solid ${s.color}` : 'none',
+                                boxShadow: isCurrent ? `0 0 0 3px ${s.color}30` : undefined,
+                              }}
+                            >
+                              {isPast ? (
+                                <Check className="h-3.5 w-3.5 text-white" />
+                              ) : isCurrent ? (
+                                <span className="w-2.5 h-2.5 rounded-full bg-white block" />
+                              ) : (
+                                <span className="w-2 h-2 rounded-full block" style={{ background: 'var(--color-border-strong)' }} />
+                              )}
+                            </div>
+                            <span
+                              className="text-[10px] text-center leading-tight"
+                              style={{
+                                color: isFuture ? 'var(--color-text-muted)' : isCurrent ? s.color : 'var(--color-text-secondary)',
+                                fontWeight: isCurrent ? 600 : 400,
+                              }}
+                            >
+                              {s.label}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Cancelado aparte */}
+                  {order.status === 'cancelado' && (
+                    <div className="flex items-center gap-2 p-2.5 rounded-lg" style={{ background: '#FEF2F2', border: '1px solid #FCA5A5' }}>
+                      <StatusBadge status="cancelado" size="sm" />
+                      <span className="text-[12px] text-red-600">Pedido cancelado</span>
+                    </div>
+                  )}
+
+                  {/* Selector */}
+                  <div className="pt-1" style={{ borderTop: '1px solid var(--color-border)' }}>
+                    <p className="text-label mb-2">Cambiar a:</p>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {[...STATUS_FLOW, { key: 'cancelado', label: 'Cancelado', color: '#DC2626' }]
+                        .filter((s) => s.key !== order.status)
+                        .map((s) => (
+                          <button
+                            key={s.key}
+                            onClick={() => setPendingStatus(pendingStatus === s.key ? null : s.key)}
+                            className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg text-[13px] transition-all"
+                            style={
+                              pendingStatus === s.key
+                                ? { background: `${s.color}15`, border: `1px solid ${s.color}50` }
+                                : { border: '1px solid transparent', color: 'var(--color-text-secondary)' }
+                            }
+                            onMouseEnter={(e) => { if (pendingStatus !== s.key) e.currentTarget.style.background = 'var(--color-surface-2)' }}
+                            onMouseLeave={(e) => { if (pendingStatus !== s.key) e.currentTarget.style.background = 'transparent' }}
+                          >
+                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                            {s.label}
+                          </button>
+                        ))
+                      }
+                    </div>
+                  </div>
+
+                  {pendingStatus && pendingStatus !== order.status && (
+                    <div className="flex gap-2 pt-1">
+                      <Button size="sm" variant="secondary" onClick={() => setPendingStatus(null)} className="flex-1">
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => { setStatusPwError(''); setStatusConfirmOpen(true) }}
+                        className="flex-1"
+                      >
+                        Confirmar
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              )
+            })()}
           </Card>
         </div>
       </div>
@@ -666,7 +747,7 @@ export function OrderDetailPage() {
                   : ''
                 setItemForm({ ...itemForm, model_id: modelId, fabric_id: suggestedFabric })
               }}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:shadow-[0_0_0_3px_rgba(79,82,214,0.12)]"
             >
               <option value="">— Sin modelo base —</option>
               {(models as any[]).map((m: any) => (
@@ -711,7 +792,7 @@ export function OrderDetailPage() {
                 }
                 setItemForm({ ...itemForm, piece_type: pieceType, fabric_id: suggestedFabric })
               }}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:shadow-[0_0_0_3px_rgba(79,82,214,0.12)]"
             >
               <option value="">— Seleccionar pieza —</option>
               <option value="Blusa">Blusa</option>
@@ -744,7 +825,7 @@ export function OrderDetailPage() {
                 <select
                   value={itemForm.fabric_id}
                   onChange={(e) => setItemForm({ ...itemForm, fabric_id: e.target.value })}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:shadow-[0_0_0_3px_rgba(79,82,214,0.12)]"
                 >
                   <option value="">— Seleccionar tela —</option>
                   {fabricList.map((f: any) => (
@@ -802,7 +883,7 @@ export function OrderDetailPage() {
               onChange={(e) => setItemForm({ ...itemForm, item_notes: e.target.value })}
               rows={2}
               placeholder="Especificaciones, ajustes, detalles adicionales..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none resize-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:border-accent focus:shadow-[0_0_0_3px_rgba(79,82,214,0.12)] outline-none resize-none"
             />
           </div>
 
