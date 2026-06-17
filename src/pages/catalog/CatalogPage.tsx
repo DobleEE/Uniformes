@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2, Layers, Scissors, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Layers, Scissors, X, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useApi } from '../../hooks/useApi'
 import { useToast } from '../../contexts/ToastContext'
@@ -70,6 +70,8 @@ export function CatalogPage() {
   const [tab, setTab] = useState<Tab>('telas')
 
   // ── Telas ──────────────────────────────────────────────────────────────
+  const [telaSearch, setTelaSearch] = useState('')
+  const [telaSeasonFilter, setTelaSeasonFilter] = useState('')
   const [telaModal, setTelaModal] = useState(false)
   const [editingTelaGroup, setEditingTelaGroup] = useState<FabricGroup | null>(null)
   const [telaFormError, setTelaFormError] = useState('')
@@ -98,6 +100,32 @@ export function CatalogPage() {
     acc[key] = groups
     return acc
   }, {})
+
+  // Opciones del filtro de temporada generadas dinámicamente
+  const seasonFilterOptions = [
+    { value: '', label: 'Todas' },
+    { value: 'linea', label: 'Solo línea' },
+    ...Object.keys(groupedTemporada)
+      .sort((a, b) => b.localeCompare(a))
+      .map((key) => {
+        const [s, y] = key.split('-')
+        return { value: key, label: seasonLabel(s, Number(y)) }
+      }),
+  ]
+
+  const searchLower = telaSearch.toLowerCase()
+
+  const lineaFiltered = telaSeasonFilter === '' || telaSeasonFilter === 'linea'
+    ? linea.filter((g) => !searchLower || g.name.toLowerCase().includes(searchLower))
+    : []
+
+  const temporadaFilteredEntries = Object.entries(groupedTemporada)
+    .filter(([key]) => telaSeasonFilter === '' || telaSeasonFilter === key)
+    .map(([key, groups]) => [
+      key,
+      groups.filter((g) => !searchLower || g.name.toLowerCase().includes(searchLower)),
+    ] as [string, FabricGroup[]])
+    .filter(([, groups]) => groups.length > 0)
 
   const saveTelasMutation = useMutation({
     mutationFn: async ({
@@ -412,26 +440,72 @@ export function CatalogPage() {
             exit={{ opacity: 0, y: -4, transition: { duration: 0.12 } }}
             className="space-y-4"
           >
-            <Card
-              title="Telas de Línea"
-              action={<span className="text-[12px] font-normal" style={{ color: 'var(--color-text-muted)' }}>{linea.length} telas</span>}
-            >
-              {linea.length === 0 ? (
-                <p className="text-[13px] py-4 text-center" style={{ color: 'var(--color-text-muted)' }}>
-                  Sin telas de línea registradas
-                </p>
-              ) : (
-                <motion.div variants={fadeInList} initial="hidden" animate="visible">
-                  {linea.map((group) => (
-                    <motion.div key={group.name} variants={fadeInItem}>
-                      <FabricGroupRow group={group} />
-                    </motion.div>
-                  ))}
-                </motion.div>
-              )}
-            </Card>
+            {/* Barra de búsqueda y filtro */}
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: 'var(--color-text-muted)' }} />
+                <input
+                  type="text"
+                  value={telaSearch}
+                  onChange={(e) => setTelaSearch(e.target.value)}
+                  placeholder="Buscar por nombre..."
+                  className="w-full pl-9 pr-3 py-2 text-[13px] rounded-lg border outline-none"
+                  style={{
+                    borderColor: 'var(--color-border)',
+                    background: 'var(--color-surface)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                />
+                {telaSearch && (
+                  <button
+                    onClick={() => setTelaSearch('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2"
+                    style={{ color: 'var(--color-text-muted)' }}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              <select
+                value={telaSeasonFilter}
+                onChange={(e) => setTelaSeasonFilter(e.target.value)}
+                className="px-3 py-2 text-[13px] rounded-lg border outline-none"
+                style={{
+                  borderColor: 'var(--color-border)',
+                  background: 'var(--color-surface)',
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                {seasonFilterOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
 
-            {Object.entries(groupedTemporada)
+            {/* Telas de Línea */}
+            {(telaSeasonFilter === '' || telaSeasonFilter === 'linea') && (
+              <Card
+                title="Telas de Línea"
+                action={<span className="text-[12px] font-normal" style={{ color: 'var(--color-text-muted)' }}>{lineaFiltered.length} telas</span>}
+              >
+                {lineaFiltered.length === 0 ? (
+                  <p className="text-[13px] py-4 text-center" style={{ color: 'var(--color-text-muted)' }}>
+                    {telaSearch ? 'Sin resultados para esa búsqueda' : 'Sin telas de línea registradas'}
+                  </p>
+                ) : (
+                  <motion.div variants={fadeInList} initial="hidden" animate="visible">
+                    {lineaFiltered.map((group) => (
+                      <motion.div key={group.name} variants={fadeInItem}>
+                        <FabricGroupRow group={group} />
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                )}
+              </Card>
+            )}
+
+            {/* Telas de Temporada */}
+            {temporadaFilteredEntries
               .sort(([a], [b]) => b.localeCompare(a))
               .map(([key, groups]) => {
                 const [s, y] = key.split('-')
@@ -593,7 +667,7 @@ export function CatalogPage() {
           <Input
             label="Nombre de tela"
             value={telaForm.name}
-            onChange={(e) => { setTelaForm({ ...telaForm, name: e.target.value }); setTelaFormError('') }}
+            onChange={(e) => { setTelaForm({ ...telaForm, name: e.target.value.toUpperCase() }); setTelaFormError('') }}
             required
           />
           {telaFormError && (
