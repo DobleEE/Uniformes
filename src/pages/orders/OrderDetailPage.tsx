@@ -426,7 +426,7 @@ export function OrderDetailPage() {
 
           {/* Employees */}
           <Card
-            title="Empleados"
+            title="Empleados de la empresa"
             action={
               <Button size="sm" onClick={() => setEmployeeModal(true)}>
                 <UserPlus className="h-3.5 w-3.5" /> Agregar
@@ -447,7 +447,7 @@ export function OrderDetailPage() {
               ]}
               data={order.employees || []}
               onRowClick={(r: any) => navigate(`/empleados/${r.id}`)}
-              emptyMessage="Sin empleados registrados"
+              emptyMessage="Sin empleados de la empresa registrados"
             />
           </Card>
         </div>
@@ -818,13 +818,41 @@ export function OrderDetailPage() {
       </Modal>
 
       {/* Add employee modal */}
-      <Modal open={employeeModal} onClose={() => setEmployeeModal(false)} title="Agregar empleado">
+      <Modal open={employeeModal} onClose={() => setEmployeeModal(false)} title="Agregar empleado de la empresa">
         <form onSubmit={(e) => { e.preventDefault(); addEmployeeMutation.mutate(empForm) }} className="space-y-4">
-          <Input label="Nombre completo *" value={empForm.name} onChange={(e) => setEmpForm({ ...empForm, name: e.target.value })} required />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input label="Departamento" value={empForm.department} onChange={(e) => setEmpForm({ ...empForm, department: e.target.value })} />
-            <Input label="Cargo" value={empForm.position} onChange={(e) => setEmpForm({ ...empForm, position: e.target.value })} />
-          </div>
+          {(() => {
+            const existingDepts = [...new Set((order.employees || []).map((e: any) => e.department).filter(Boolean))] as string[]
+            const existingPositions = [...new Set((order.employees || []).map((e: any) => e.position).filter(Boolean))] as string[]
+            return (
+              <>
+                <Input label="Nombre completo *" value={empForm.name} onChange={(e) => setEmpForm({ ...empForm, name: e.target.value })} required />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <Input
+                      label="Departamento"
+                      value={empForm.department}
+                      onChange={(e) => setEmpForm({ ...empForm, department: e.target.value })}
+                      list="dept-suggestions"
+                    />
+                    <datalist id="dept-suggestions">
+                      {existingDepts.map((d) => <option key={d} value={d} />)}
+                    </datalist>
+                  </div>
+                  <div>
+                    <Input
+                      label="Cargo"
+                      value={empForm.position}
+                      onChange={(e) => setEmpForm({ ...empForm, position: e.target.value })}
+                      list="position-suggestions"
+                    />
+                    <datalist id="position-suggestions">
+                      {existingPositions.map((p) => <option key={p} value={p} />)}
+                    </datalist>
+                  </div>
+                </div>
+              </>
+            )
+          })()}
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="secondary" onClick={() => setEmployeeModal(false)}>Cancelar</Button>
             <Button type="submit" disabled={addEmployeeMutation.isPending}>Agregar</Button>

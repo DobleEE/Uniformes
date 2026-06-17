@@ -54,6 +54,7 @@ export function CatalogPage() {
   // ── Telas ──────────────────────────────────────────────────────────────
   const [telaModal, setTelaModal] = useState(false)
   const [editingTelaGroup, setEditingTelaGroup] = useState<FabricGroup | null>(null)
+  const [telaFormError, setTelaFormError] = useState('')
   const [telaForm, setTelaForm] = useState({
     name: '',
     fabric_type: 'linea' as 'linea' | 'temporada',
@@ -132,10 +133,32 @@ export function CatalogPage() {
   function closeTelaModal() {
     setTelaModal(false)
     setEditingTelaGroup(null)
+    setTelaFormError('')
+  }
+
+  function isDuplicateTela(): boolean {
+    const nameLower = telaForm.name.toLowerCase().trim()
+    return fabrics.some((f: any) => {
+      if (editingTelaGroup?.items.some((i: any) => i.id === f.id)) return false
+      if (f.name.toLowerCase().trim() !== nameLower) return false
+      if (f.fabric_type !== telaForm.fabric_type) return false
+      if (telaForm.fabric_type === 'temporada') {
+        return f.season === telaForm.season && Number(f.season_year) === Number(telaForm.season_year)
+      }
+      return true
+    })
   }
 
   function submitTela(e: React.FormEvent) {
     e.preventDefault()
+    setTelaFormError('')
+    if (isDuplicateTela()) {
+      const where = telaForm.fabric_type === 'temporada'
+        ? ` de temporada ${telaForm.season} ${telaForm.season_year}`
+        : ' de línea'
+      setTelaFormError(`Ya existe una tela llamada "${telaForm.name}"${where}.`)
+      return
+    }
     const base = {
       name: telaForm.name,
       fabric_type: telaForm.fabric_type,
@@ -473,9 +496,12 @@ export function CatalogPage() {
           <Input
             label="Nombre de tela"
             value={telaForm.name}
-            onChange={(e) => setTelaForm({ ...telaForm, name: e.target.value })}
+            onChange={(e) => { setTelaForm({ ...telaForm, name: e.target.value }); setTelaFormError('') }}
             required
           />
+          {telaFormError && (
+            <p className="text-sm text-red-500 -mt-2">{telaFormError}</p>
+          )}
 
           <Select
             label="Tipo"

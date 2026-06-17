@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Plus, Trash2, User } from 'lucide-react'
+import { ArrowLeft, Plus, Pencil, Trash2, User } from 'lucide-react'
 import { useApi } from '../../hooks/useApi'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Card } from '../../components/ui/Card'
@@ -10,18 +10,17 @@ import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
 import { Table } from '../../components/ui/Table'
 
+type ContactForm = { name: string; position: string; phone: string; email: string }
+const emptyContact: ContactForm = { name: '', position: '', phone: '', email: '' }
+
 export function ClientDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { get, put, post, del } = useApi()
   const queryClient = useQueryClient()
   const [contactModal, setContactModal] = useState(false)
-  const [contactForm, setContactForm] = useState({
-    name: '',
-    position: '',
-    phone: '',
-    email: '',
-  })
+  const [editingContact, setEditingContact] = useState<any>(null)
+  const [contactForm, setContactForm] = useState<ContactForm>(emptyContact)
 
   const { data: client, isLoading } = useQuery({
     queryKey: ['clients', id],
@@ -34,12 +33,18 @@ export function ClientDetailPage() {
   })
 
   const addContactMutation = useMutation({
-    mutationFn: (data: typeof contactForm) =>
-      post(`/api/clients/${id}/contacts`, data),
+    mutationFn: (data: ContactForm) => post(`/api/clients/${id}/contacts`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients', id] })
-      setContactModal(false)
-      setContactForm({ name: '', position: '', phone: '', email: '' })
+      closeContactModal()
+    },
+  })
+
+  const updateContactMutation = useMutation({
+    mutationFn: (data: ContactForm) => put(`/api/contacts/${editingContact.id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients', id] })
+      closeContactModal()
     },
   })
 
@@ -47,6 +52,40 @@ export function ClientDetailPage() {
     mutationFn: (contactId: string) => del(`/api/contacts/${contactId}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', id] }),
   })
+
+  function openContactCreate() {
+    setEditingContact(null)
+    setContactForm(emptyContact)
+    setContactModal(true)
+  }
+
+  function openContactEdit(contact: any) {
+    setEditingContact(contact)
+    setContactForm({
+      name: contact.name,
+      position: contact.position || '',
+      phone: contact.phone || '',
+      email: contact.email || '',
+    })
+    setContactModal(true)
+  }
+
+  function closeContactModal() {
+    setContactModal(false)
+    setEditingContact(null)
+    setContactForm(emptyContact)
+  }
+
+  function handleContactSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (editingContact) {
+      updateContactMutation.mutate(contactForm)
+    } else {
+      addContactMutation.mutate(contactForm)
+    }
+  }
+
+  const isContactPending = addContactMutation.isPending || updateContactMutation.isPending
 
   if (isLoading) {
     return <div className="text-gray-400">Cargando...</div>
@@ -70,7 +109,7 @@ export function ClientDetailPage() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <Card title="Informacion del cliente">
+          <Card title="Información del cliente">
             <form
               onSubmit={(e) => {
                 e.preventDefault()
@@ -91,7 +130,7 @@ export function ClientDetailPage() {
                   defaultValue={client.industry || ''}
                 />
                 <Input
-                  label="Direccion"
+                  label="Dirección"
                   name="address"
                   defaultValue={client.address || ''}
                 />
@@ -107,7 +146,7 @@ export function ClientDetailPage() {
           <Card
             title="Contactos"
             action={
-              <Button size="sm" onClick={() => setContactModal(true)}>
+              <Button size="sm" onClick={openContactCreate}>
                 <Plus className="h-3.5 w-3.5" />
                 Agregar
               </Button>
@@ -126,21 +165,29 @@ export function ClientDetailPage() {
                   ),
                 },
                 { key: 'position', header: 'Cargo' },
-                { key: 'phone', header: 'Telefono' },
+                { key: 'phone', header: 'Teléfono' },
                 { key: 'email', header: 'Email' },
                 {
                   key: 'actions',
                   header: '',
                   render: (row: any) => (
-                    <button
-                      onClick={() => {
-                        if (confirm('Eliminar contacto?'))
-                          deleteContactMutation.mutate(row.id)
-                      }}
-                      className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openContactEdit(row)}
+                        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm('¿Eliminar contacto?'))
+                            deleteContactMutation.mutate(row.id)
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   ),
                 },
               ]}
@@ -172,58 +219,40 @@ export function ClientDetailPage() {
 
       <Modal
         open={contactModal}
-        onClose={() => setContactModal(false)}
-        title="Nuevo contacto"
+        onClose={closeContactModal}
+        title={editingContact ? 'Editar contacto' : 'Nuevo contacto'}
       >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            addContactMutation.mutate(contactForm)
-          }}
-          className="space-y-4"
-        >
+        <form onSubmit={handleContactSubmit} className="space-y-4">
           <Input
             label="Nombre *"
             value={contactForm.name}
-            onChange={(e) =>
-              setContactForm({ ...contactForm, name: e.target.value })
-            }
+            onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })}
             required
           />
           <Input
             label="Cargo"
             value={contactForm.position}
-            onChange={(e) =>
-              setContactForm({ ...contactForm, position: e.target.value })
-            }
+            onChange={(e) => setContactForm({ ...contactForm, position: e.target.value })}
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="Telefono"
+              label="Teléfono"
               value={contactForm.phone}
-              onChange={(e) =>
-                setContactForm({ ...contactForm, phone: e.target.value })
-              }
+              onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
             />
             <Input
               label="Email"
               type="email"
               value={contactForm.email}
-              onChange={(e) =>
-                setContactForm({ ...contactForm, email: e.target.value })
-              }
+              onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
             />
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setContactModal(false)}
-            >
+            <Button type="button" variant="secondary" onClick={closeContactModal}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={addContactMutation.isPending}>
-              Guardar
+            <Button type="submit" disabled={isContactPending}>
+              {isContactPending ? 'Guardando...' : editingContact ? 'Guardar cambios' : 'Agregar contacto'}
             </Button>
           </div>
         </form>
