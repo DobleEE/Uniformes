@@ -510,7 +510,7 @@ export function CatalogPage() {
           )}
 
           <Select
-            label="Uso de pieza"
+            label="Uso de pieza *"
             value={telaForm.piece_type}
             onChange={(e) =>
               setTelaForm({ ...telaForm, piece_type: e.target.value as typeof telaForm.piece_type })
@@ -522,6 +522,7 @@ export function CatalogPage() {
               { value: 'Ch/P', label: 'Chaleco / Pantalón' },
             ]}
             placeholder="— Seleccionar pieza —"
+            required
           />
 
           {/* Colores dinámicos */}

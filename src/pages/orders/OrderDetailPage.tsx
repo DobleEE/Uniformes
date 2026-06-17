@@ -36,6 +36,7 @@ export function OrderDetailPage() {
   const [poModal, setPoModal] = useState(false)
   const [poSupplierId, setPoSupplierId] = useState('')
   const [poRows, setPoRows] = useState([{ material_id: '', quantity: '', unit_price: '' }])
+  const [deleteItemError, setDeleteItemError] = useState('')
 
   const { data: order, isLoading } = useQuery({
     queryKey: ['orders', id],
@@ -113,6 +114,10 @@ export function OrderDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders', id] })
       queryClient.invalidateQueries({ queryKey: ['orders', id, 'check'] })
+      setDeleteItemError('')
+    },
+    onError: (err: any) => {
+      setDeleteItemError(err?.message || 'Error al eliminar el ítem. Intenta de nuevo.')
     },
   })
 
@@ -252,8 +257,11 @@ export function OrderDetailPage() {
                 },
                 {
                   key: 'actions', header: '', render: (r: any) => (
-                    <button onClick={() => { if (confirm('¿Eliminar este ítem?')) deleteItemMutation.mutate(r.id) }}
-                      className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg">
+                    <button
+                      onClick={() => { if (confirm('¿Eliminar este ítem?')) deleteItemMutation.mutate(r.id) }}
+                      disabled={deleteItemMutation.isPending}
+                      className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   ),
@@ -262,6 +270,9 @@ export function OrderDetailPage() {
               data={order.order_items || []}
               emptyMessage="Sin ítems"
             />
+            {deleteItemError && (
+              <p className="mt-2 text-sm text-red-500">{deleteItemError}</p>
+            )}
           </Card>
 
           {/* Material check */}
