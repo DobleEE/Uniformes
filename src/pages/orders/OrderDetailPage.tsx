@@ -254,6 +254,119 @@ export function OrderDetailPage() {
         action={<StatusBadge status={order.status} />}
       />
 
+      {/* Estado del pedido — ancho completo, antes del grid */}
+      <div className="mb-6">
+        <Card title="Estado del pedido">
+          {(() => {
+            const STATUS_FLOW = [
+              { key: 'cotizacion',      label: 'Cotización',      color: '#6B7280' },
+              { key: 'aprobado',        label: 'Aprobado',        color: '#4F52D6' },
+              { key: 'anticipo_pagado', label: 'Anticipo pagado', color: '#7C3AED' },
+              { key: 'en_produccion',   label: 'En producción',   color: '#D97706' },
+              { key: 'terminado',       label: 'Terminado',       color: '#059669' },
+              { key: 'entregado',       label: 'Entregado',       color: '#0D9E6B' },
+            ]
+            const currentIdx = STATUS_FLOW.findIndex((s) => s.key === order.status)
+            return (
+              <div className="space-y-4">
+                {/* Timeline */}
+                <div className="relative">
+                  <div
+                    className="absolute top-3.5 left-3.5 right-3.5 h-0.5"
+                    style={{ background: 'var(--color-border)' }}
+                  />
+                  <div className="relative flex justify-between">
+                    {STATUS_FLOW.map((s, idx) => {
+                      const isPast    = idx < currentIdx
+                      const isCurrent = idx === currentIdx
+                      const isFuture  = idx > currentIdx
+                      return (
+                        <div key={s.key} className="flex flex-col items-center gap-1.5" style={{ flex: 1 }}>
+                          <div
+                            className="w-7 h-7 rounded-full flex items-center justify-center z-10 transition-all duration-300"
+                            style={{
+                              background: isFuture ? 'var(--color-surface-2)' : s.color,
+                              border: isCurrent ? `3px solid ${s.color}` : 'none',
+                              boxShadow: isCurrent ? `0 0 0 3px ${s.color}30` : undefined,
+                            }}
+                          >
+                            {isPast ? (
+                              <Check className="h-3.5 w-3.5 text-white" />
+                            ) : isCurrent ? (
+                              <span className="w-2.5 h-2.5 rounded-full bg-white block" />
+                            ) : (
+                              <span className="w-2 h-2 rounded-full block" style={{ background: 'var(--color-border-strong)' }} />
+                            )}
+                          </div>
+                          <span
+                            className="text-[10px] text-center leading-tight"
+                            style={{
+                              color: isFuture ? 'var(--color-text-muted)' : isCurrent ? s.color : 'var(--color-text-secondary)',
+                              fontWeight: isCurrent ? 600 : 400,
+                            }}
+                          >
+                            {s.label}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Cancelado aparte */}
+                {order.status === 'cancelado' && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg" style={{ background: '#FEF2F2', border: '1px solid #FCA5A5' }}>
+                    <StatusBadge status="cancelado" size="sm" />
+                    <span className="text-[12px] text-red-600">Pedido cancelado</span>
+                  </div>
+                )}
+
+                {/* Selector horizontal */}
+                <div className="pt-1" style={{ borderTop: '1px solid var(--color-border)' }}>
+                  <p className="text-label mb-2">Cambiar a:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[...STATUS_FLOW, { key: 'cancelado', label: 'Cancelado', color: '#DC2626' }]
+                      .filter((s) => s.key !== order.status)
+                      .map((s) => (
+                        <button
+                          key={s.key}
+                          onClick={() => setPendingStatus(pendingStatus === s.key ? null : s.key)}
+                          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] transition-all"
+                          style={
+                            pendingStatus === s.key
+                              ? { background: `${s.color}15`, border: `1px solid ${s.color}50` }
+                              : { border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }
+                          }
+                          onMouseEnter={(e) => { if (pendingStatus !== s.key) e.currentTarget.style.background = 'var(--color-surface-2)' }}
+                          onMouseLeave={(e) => { if (pendingStatus !== s.key) e.currentTarget.style.background = 'transparent' }}
+                        >
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                          {s.label}
+                        </button>
+                      ))
+                    }
+                  </div>
+                </div>
+
+                {pendingStatus && pendingStatus !== order.status && (
+                  <div className="flex gap-2 pt-1">
+                    <Button size="sm" variant="secondary" onClick={() => setPendingStatus(null)}>
+                      Cancelar
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => { setStatusPwError(''); setStatusConfirmOpen(true) }}
+                    >
+                      Confirmar
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+        </Card>
+      </div>
+
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {/* Items */}
@@ -576,117 +689,6 @@ export function OrderDetailPage() {
             </Button>
           </div>
 
-          <Card title="Estado del pedido">
-            {(() => {
-              const STATUS_FLOW = [
-                { key: 'cotizacion',      label: 'Cotización',      color: '#6B7280' },
-                { key: 'aprobado',        label: 'Aprobado',        color: '#4F52D6' },
-                { key: 'anticipo_pagado', label: 'Anticipo pagado', color: '#7C3AED' },
-                { key: 'en_produccion',   label: 'En producción',   color: '#D97706' },
-                { key: 'terminado',       label: 'Terminado',       color: '#059669' },
-                { key: 'entregado',       label: 'Entregado',       color: '#0D9E6B' },
-              ]
-              const currentIdx = STATUS_FLOW.findIndex((s) => s.key === order.status)
-              return (
-                <div className="space-y-4">
-                  {/* Timeline */}
-                  <div className="relative">
-                    {/* Connecting line */}
-                    <div
-                      className="absolute top-3.5 left-3.5 right-3.5 h-0.5"
-                      style={{ background: 'var(--color-border)' }}
-                    />
-                    <div className="relative flex justify-between">
-                      {STATUS_FLOW.map((s, idx) => {
-                        const isPast    = idx < currentIdx
-                        const isCurrent = idx === currentIdx
-                        const isFuture  = idx > currentIdx
-                        return (
-                          <div key={s.key} className="flex flex-col items-center gap-1.5" style={{ flex: 1 }}>
-                            <div
-                              className="w-7 h-7 rounded-full flex items-center justify-center z-10 transition-all duration-300"
-                              style={{
-                                background: isFuture ? 'var(--color-surface-2)' : s.color,
-                                border: isCurrent ? `3px solid ${s.color}` : 'none',
-                                boxShadow: isCurrent ? `0 0 0 3px ${s.color}30` : undefined,
-                              }}
-                            >
-                              {isPast ? (
-                                <Check className="h-3.5 w-3.5 text-white" />
-                              ) : isCurrent ? (
-                                <span className="w-2.5 h-2.5 rounded-full bg-white block" />
-                              ) : (
-                                <span className="w-2 h-2 rounded-full block" style={{ background: 'var(--color-border-strong)' }} />
-                              )}
-                            </div>
-                            <span
-                              className="text-[10px] text-center leading-tight"
-                              style={{
-                                color: isFuture ? 'var(--color-text-muted)' : isCurrent ? s.color : 'var(--color-text-secondary)',
-                                fontWeight: isCurrent ? 600 : 400,
-                              }}
-                            >
-                              {s.label}
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Cancelado aparte */}
-                  {order.status === 'cancelado' && (
-                    <div className="flex items-center gap-2 p-2.5 rounded-lg" style={{ background: '#FEF2F2', border: '1px solid #FCA5A5' }}>
-                      <StatusBadge status="cancelado" size="sm" />
-                      <span className="text-[12px] text-red-600">Pedido cancelado</span>
-                    </div>
-                  )}
-
-                  {/* Selector */}
-                  <div className="pt-1" style={{ borderTop: '1px solid var(--color-border)' }}>
-                    <p className="text-label mb-2">Cambiar a:</p>
-                    <div className="grid grid-cols-1 gap-1.5">
-                      {[...STATUS_FLOW, { key: 'cancelado', label: 'Cancelado', color: '#DC2626' }]
-                        .filter((s) => s.key !== order.status)
-                        .map((s) => (
-                          <button
-                            key={s.key}
-                            onClick={() => setPendingStatus(pendingStatus === s.key ? null : s.key)}
-                            className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg text-[13px] transition-all"
-                            style={
-                              pendingStatus === s.key
-                                ? { background: `${s.color}15`, border: `1px solid ${s.color}50` }
-                                : { border: '1px solid transparent', color: 'var(--color-text-secondary)' }
-                            }
-                            onMouseEnter={(e) => { if (pendingStatus !== s.key) e.currentTarget.style.background = 'var(--color-surface-2)' }}
-                            onMouseLeave={(e) => { if (pendingStatus !== s.key) e.currentTarget.style.background = 'transparent' }}
-                          >
-                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
-                            {s.label}
-                          </button>
-                        ))
-                      }
-                    </div>
-                  </div>
-
-                  {pendingStatus && pendingStatus !== order.status && (
-                    <div className="flex gap-2 pt-1">
-                      <Button size="sm" variant="secondary" onClick={() => setPendingStatus(null)} className="flex-1">
-                        Cancelar
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => { setStatusPwError(''); setStatusConfirmOpen(true) }}
-                        className="flex-1"
-                      >
-                        Confirmar
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )
-            })()}
-          </Card>
         </div>
       </div>
 
