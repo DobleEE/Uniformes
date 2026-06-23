@@ -21,10 +21,10 @@ export interface NavItem {
 export const navItems: NavItem[] = [
   { to: '/dashboard', label: 'Panel de control', icon: LayoutDashboard, roles: ['admin', 'ventas', 'almacen', 'confeccion'] },
   { to: '/clientes', label: 'Clientes', icon: Users, roles: ['admin', 'ventas'] },
+  { to: '/cotizaciones', label: 'Cotizaciones', icon: ClipboardList, roles: ['admin', 'ventas'] },
   { to: '/pedidos', label: 'Pedidos', icon: ShoppingCart, roles: ['admin', 'ventas', 'confeccion'] },
   { to: '/catalogo', label: 'Catálogo', icon: Layers, roles: ['admin', 'ventas'] },
   { to: '/inventario', label: 'Inventario', icon: Package, roles: ['admin', 'almacen'] },
   { to: '/proveedores', label: 'Proveedores', icon: Truck, roles: ['admin', 'almacen'] },
   { to: '/produccion', label: 'Produccion', icon: Scissors, roles: ['admin', 'confeccion'] },
-  { to: '/cotizaciones', label: 'Cotizaciones web', icon: ClipboardList, roles: ['admin', 'ventas'] },
 ]
