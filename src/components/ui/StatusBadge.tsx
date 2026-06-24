@@ -5,7 +5,7 @@ const ORDER_STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   en_produccion:   { color: '#D97706', label: 'En producción' },
   terminado:       { color: '#059669', label: 'Terminado' },
   entregado:       { color: '#0D9E6B', label: 'Entregado' },
-  cancelado:       { color: '#DC2626', label: 'Cancelado' },
+  cancelado:       { color: '#D97706', label: 'Pausado' },
   cancelada:       { color: '#DC2626', label: 'Cancelada' },
 }
 

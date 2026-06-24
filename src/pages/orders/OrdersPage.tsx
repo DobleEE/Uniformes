@@ -21,7 +21,7 @@ const STATUS_FILTERS = [
   { value: 'en_produccion',   label: 'En producción',  color: '#D97706' },
   { value: 'terminado',       label: 'Terminado',      color: '#059669' },
   { value: 'entregado',       label: 'Entregado',      color: '#0D9E6B' },
-  { value: 'cancelado',       label: 'Cancelado',      color: '#DC2626' },
+  { value: 'cancelado',       label: 'Pausado',        color: '#D97706' },
 ]
 
 export function OrdersPage() {

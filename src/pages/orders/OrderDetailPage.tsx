@@ -22,6 +22,7 @@ export function OrderDetailPage() {
   const queryClient = useQueryClient()
   const toast = useToast()
   const [downloading, setDownloading] = useState(false)
+  const [quotationsModal, setQuotationsModal] = useState(false)
   const [itemModal, setItemModal] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
   const [employeeModal, setEmployeeModal] = useState(false)
@@ -35,9 +36,9 @@ export function OrderDetailPage() {
   })
   const emptyEmpForm = {
     name: '', department: '', position: '',
-    chest: '', waist: '', hips: '', height: '',
-    sleeve: '', shoulder: '', neck: '', inseam: '',
-    emp_notes: '',
+    chaleco_talla: '', chaleco_notas: '',
+    blusa_talla: '',   blusa_notas: '',
+    pantalon_talla: '', pantalon_notas: '',
   }
   const [empForm, setEmpForm] = useState(emptyEmpForm)
   const [pendingStatus, setPendingStatus] = useState<string | null>(null)
@@ -118,10 +119,12 @@ export function OrderDetailPage() {
   })
 
   const emptyItemForm = { piece_type: '', fabric_id: '', model_id: '', quantity: '', price_per_unit: '', item_notes: '' }
+  const [itemMode, setItemMode] = useState<'catalogo' | 'libre'>('catalogo')
 
   function openAddItem() {
     setEditingItem(null)
     setItemForm(emptyItemForm)
+    setItemMode('catalogo')
     setItemModal(true)
   }
 
@@ -142,6 +145,7 @@ export function OrderDetailPage() {
     setItemModal(false)
     setEditingItem(null)
     setItemForm(emptyItemForm)
+    setItemMode('catalogo')
   }
 
   const addItemMutation = useMutation({
@@ -185,7 +189,16 @@ export function OrderDetailPage() {
     onError: (err: any) => toast.error(err?.message || 'Error al agregar empleado'),
   })
 
-  const MEASUREMENT_KEYS = ['chest', 'waist', 'hips', 'height', 'sleeve', 'shoulder', 'neck', 'inseam'] as const
+  const deleteEmployeeMutation = useMutation({
+    mutationFn: (empId: string) => del(`/api/employees/${empId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders', id] })
+      toast.success('Empleado eliminado')
+    },
+    onError: (err: any) => toast.error(err?.message || 'Error al eliminar empleado'),
+  })
+
+  const PIECE_KEYS = ['chaleco', 'blusa', 'pantalon'] as const
 
   async function handleAddEmployee(e: React.FormEvent) {
     e.preventDefault()
@@ -196,10 +209,12 @@ export function OrderDetailPage() {
         position: empForm.position || undefined,
       })
       const measurementData: Record<string, number | string> = {}
-      for (const key of MEASUREMENT_KEYS) {
-        if (empForm[key]) measurementData[key] = Number(empForm[key])
+      for (const piece of PIECE_KEYS) {
+        const talla = empForm[`${piece}_talla` as keyof typeof empForm]
+        const notas = empForm[`${piece}_notas` as keyof typeof empForm]
+        if (talla) measurementData[`${piece}_talla`] = Number(talla)
+        if (notas) measurementData[`${piece}_notas`] = notas
       }
-      if (empForm.emp_notes) measurementData.notes = empForm.emp_notes
       if (Object.keys(measurementData).length > 0) {
         await put(`/api/employees/${employee.id}/measurements`, measurementData)
       }
@@ -349,9 +364,9 @@ export function OrderDetailPage() {
 
                 {/* Cancelado aparte */}
                 {order.status === 'cancelado' && (
-                  <div className="flex items-center gap-2 p-2.5 rounded-lg" style={{ background: '#FEF2F2', border: '1px solid #FCA5A5' }}>
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg" style={{ background: '#FFFBEB', border: '1px solid #FCD34D' }}>
                     <StatusBadge status="cancelado" size="sm" />
-                    <span className="text-[12px] text-red-600">Pedido cancelado</span>
+                    <span className="text-[12px] text-amber-700">Pedido pausado</span>
                   </div>
                 )}
 
@@ -359,7 +374,7 @@ export function OrderDetailPage() {
                 <div className="pt-1" style={{ borderTop: '1px solid var(--color-border)' }}>
                   <p className="text-label mb-2">Cambiar a:</p>
                   <div className="flex flex-wrap gap-2">
-                    {[...STATUS_FLOW, { key: 'cancelado', label: 'Cancelado', color: '#DC2626' }]
+                    {[...STATUS_FLOW, { key: 'cancelado', label: 'Pausado', color: '#D97706' }]
                       .filter((s) => s.key !== order.status)
                       .map((s) => (
                         <button
@@ -403,6 +418,32 @@ export function OrderDetailPage() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {/* Cotizaciones del cliente */}
+          {order?.client_id && (
+            <div>
+              <button
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-surface)',
+                  color: 'var(--color-text-primary)',
+                }}
+                onClick={() => setQuotationsModal(true)}
+              >
+                <FileDown className="h-4 w-4" style={{ color: 'var(--color-text-muted)' }} />
+                Ver cotizaciones del cliente
+                {clientQuotations.length > 0 && (
+                  <span
+                    className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-white text-[11px] font-bold"
+                    style={{ background: 'var(--color-accent)' }}
+                  >
+                    {clientQuotations.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
+
           {/* Items */}
           <Card
             title="Items del pedido"
@@ -598,14 +639,41 @@ export function OrderDetailPage() {
                 { key: 'department', header: 'Departamento' },
                 { key: 'position', header: 'Cargo' },
                 {
-                  key: 'measurements', header: 'Medidas', render: (r: any) =>
-                    r.measurements?.length > 0
+                  key: 'measurements', header: 'Tallas', render: (r: any) => {
+                    const m = r.measurements?.[0] || r.measurements
+                    const hasTallas = m && (m.chaleco_talla || m.blusa_talla || m.pantalon_talla)
+                    return hasTallas
                       ? <StatusBadge status="recibida" />
                       : <span className="text-xs text-gray-400">Pendiente</span>
+                  },
+                },
+                {
+                  key: 'actions', header: '', render: (r: any) => (
+                    <div className="flex items-center gap-1 justify-end">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); navigate(`/empleados/${r.id}`) }}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+                        title="Editar"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (confirm(`¿Eliminar a ${r.name} del pedido?`)) {
+                            deleteEmployeeMutation.mutate(r.id)
+                          }
+                        }}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ),
                 },
               ]}
               data={order.employees || []}
-              onRowClick={(r: any) => navigate(`/empleados/${r.id}`)}
               emptyMessage="Sin empleados de la empresa registrados"
             />
           </Card>
@@ -737,51 +805,71 @@ export function OrderDetailPage() {
             </button>
           </div>
 
-          {/* Cotizaciones del cliente */}
-          {clientQuotations.length > 0 && (
-            <Card title="Cotizaciones del cliente">
-              <div className="space-y-2">
-                {clientQuotations.map((q: any) => {
-                  const qDate = new Date(q.created_at).toLocaleDateString('es-MX', {
-                    day: '2-digit', month: 'short', year: 'numeric',
-                  })
-                  const qTotal = Number(q.total).toLocaleString('es-MX', {
-                    minimumFractionDigits: 2, maximumFractionDigits: 2,
-                  })
-                  return (
-                    <div
-                      key={q.id}
-                      className="rounded-lg px-3 py-2.5 text-sm"
-                      style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}
-                    >
-                      <div className="flex justify-between items-start gap-2">
-                        <span className="font-medium text-gray-800 leading-tight">{q.temporada_label}</span>
-                        <span className="text-gray-500 text-xs whitespace-nowrap">{qDate}</span>
-                      </div>
-                      <div className="flex justify-between items-center mt-1">
-                        <span className="text-xs text-gray-500">
-                          {Array.isArray(q.items) ? q.items.length : 0} pieza{Array.isArray(q.items) && q.items.length !== 1 ? 's' : ''}
-                        </span>
-                        <span className="text-xs font-semibold text-gray-700">${qTotal}</span>
-                      </div>
-                      {Array.isArray(q.items) && q.items.length > 0 && (
-                        <ul className="mt-1.5 space-y-0.5">
-                          {(q.items as any[]).map((item: any, idx: number) => (
-                            <li key={idx} className="text-[11px] text-gray-500 truncate">
-                              {item.cantidad}× {item.descripcion}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </Card>
-          )}
 
         </div>
       </div>
+
+      {/* Quotations modal */}
+      <Modal
+        open={quotationsModal}
+        onClose={() => setQuotationsModal(false)}
+        title="Cotizaciones del cliente"
+      >
+        {clientQuotations.length === 0 ? (
+          <div className="py-10 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
+            Este cliente no tiene cotizaciones registradas aún.
+          </div>
+        ) : (
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+            {clientQuotations.map((q: any) => {
+              const qDate = new Date(q.fecha + 'T12:00:00').toLocaleDateString('es-MX', {
+                day: '2-digit', month: 'long', year: 'numeric',
+              })
+              const createdAt = new Date(q.created_at).toLocaleDateString('es-MX', {
+                day: '2-digit', month: 'short', year: 'numeric',
+              })
+              const qTotal = Number(q.total).toLocaleString('es-MX', {
+                style: 'currency', currency: 'MXN',
+              })
+              return (
+                <div
+                  key={q.id}
+                  className="rounded-xl px-4 py-3.5"
+                  style={{ border: '1px solid var(--color-border)', background: 'var(--color-surface-2)' }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-[14px]" style={{ color: 'var(--color-text-primary)' }}>
+                        {q.temporada_label}
+                      </p>
+                      <p className="text-[12px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                        Fecha: {qDate} · Creada el {createdAt}
+                      </p>
+                    </div>
+                    <p className="font-bold text-[15px] flex-shrink-0" style={{ color: 'var(--color-text-primary)' }}>
+                      {qTotal}
+                    </p>
+                  </div>
+                  {Array.isArray(q.items) && q.items.length > 0 && (
+                    <div className="mt-3 pt-3 space-y-1.5" style={{ borderTop: '1px solid var(--color-border)' }}>
+                      {(q.items as any[]).map((item: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center text-[13px]">
+                          <span style={{ color: 'var(--color-text-secondary)' }}>
+                            {item.cantidad}× {item.descripcion}
+                          </span>
+                          <span className="font-medium ml-4 flex-shrink-0" style={{ color: 'var(--color-text-primary)' }}>
+                            {Number(item.precio_unitario).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </Modal>
 
       {/* Add item modal */}
       <Modal
@@ -794,8 +882,8 @@ export function OrderDetailPage() {
             e.preventDefault()
             const payload = {
               piece_type: itemForm.piece_type,
-              fabric_id: itemForm.fabric_id || null,
-              model_id: itemForm.model_id || null,
+              fabric_id: itemMode === 'libre' ? null : (itemForm.fabric_id || null),
+              model_id: itemMode === 'libre' ? null : (itemForm.model_id || null),
               quantity: Number(itemForm.quantity),
               price_per_unit: Number(itemForm.price_per_unit),
               item_notes: itemForm.item_notes || null,
@@ -808,7 +896,49 @@ export function OrderDetailPage() {
           }}
           className="space-y-4"
         >
-          {/* Modelo (opcional) — pre-rellena la tela al seleccionar */}
+          {/* Toggle modo */}
+          {!editingItem && (
+            <div className="flex rounded-lg p-1 gap-1" style={{ background: 'var(--color-surface-2)' }}>
+              {([
+                { key: 'catalogo', label: 'Desde catálogo' },
+                { key: 'libre',    label: 'Forma libre' },
+              ] as const).map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => { setItemMode(key); setItemForm(emptyItemForm) }}
+                  className="flex-1 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all"
+                  style={
+                    itemMode === key
+                      ? { background: 'var(--color-surface)', color: 'var(--color-text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }
+                      : { color: 'var(--color-text-muted)' }
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* ── FORMA LIBRE ─────────────────────────────────────────── */}
+          {itemMode === 'libre' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Descripción del producto *
+              </label>
+              <input
+                required
+                type="text"
+                value={itemForm.piece_type}
+                onChange={(e) => setItemForm({ ...itemForm, piece_type: e.target.value })}
+                placeholder="Ej: Camisa manga larga azul marino, Gorra bordada, Chaleco de seguridad..."
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:shadow-[0_0_0_3px_rgba(79,82,214,0.12)]"
+              />
+            </div>
+          )}
+
+          {/* ── DESDE CATÁLOGO ──────────────────────────────────────── */}
+          {itemMode === 'catalogo' && (<>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Modelo / Maqueta <span className="text-gray-400 font-normal">(opcional)</span>
@@ -931,6 +1061,7 @@ export function OrderDetailPage() {
               </div>
             )
           })()}
+          </>)}
 
           <div className="grid grid-cols-2 gap-4">
             <Input
@@ -1014,41 +1145,34 @@ export function OrderDetailPage() {
             <div className="flex items-center gap-3 mb-3">
               <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
               <span className="text-[12px] font-medium uppercase tracking-wide" style={{ color: 'var(--color-text-muted)' }}>
-                Medidas <span className="font-normal normal-case">(opcional)</span>
+                Tallas por pieza <span className="font-normal normal-case">(opcional)</span>
               </span>
               <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="space-y-3">
               {([
-                { key: 'chest',    label: 'Pecho' },
-                { key: 'waist',    label: 'Cintura' },
-                { key: 'hips',     label: 'Cadera' },
-                { key: 'height',   label: 'Estatura' },
-                { key: 'sleeve',   label: 'Manga' },
-                { key: 'shoulder', label: 'Hombro' },
-                { key: 'neck',     label: 'Cuello' },
-                { key: 'inseam',   label: 'Entrepierna' },
+                { key: 'chaleco',  label: 'Chaleco' },
+                { key: 'blusa',    label: 'Blusa' },
+                { key: 'pantalon', label: 'Pantalón' },
               ] as const).map(({ key, label }) => (
-                <Input
-                  key={key}
-                  label={`${label} (cm)`}
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  value={empForm[key]}
-                  onChange={(e) => setEmpForm({ ...empForm, [key]: e.target.value })}
-                />
+                <div key={key} className="grid grid-cols-[80px_1fr] gap-3 items-end">
+                  <Input
+                    label={label}
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="Talla"
+                    value={empForm[`${key}_talla` as keyof typeof empForm]}
+                    onChange={(e) => setEmpForm({ ...empForm, [`${key}_talla`]: e.target.value })}
+                  />
+                  <Input
+                    label="Notas"
+                    placeholder="Ej: manga corta, ajustado..."
+                    value={empForm[`${key}_notas` as keyof typeof empForm]}
+                    onChange={(e) => setEmpForm({ ...empForm, [`${key}_notas`]: e.target.value })}
+                  />
+                </div>
               ))}
-            </div>
-            <div className="mt-3">
-              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>Notas de medidas</label>
-              <textarea
-                value={empForm.emp_notes}
-                onChange={(e) => setEmpForm({ ...empForm, emp_notes: e.target.value })}
-                rows={2}
-                className="w-full px-3 py-2 border rounded-lg text-sm outline-none resize-none"
-                style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)', background: 'var(--color-surface)' }}
-              />
             </div>
           </div>
 

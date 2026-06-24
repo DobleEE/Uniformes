@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Trash2, Download, ChevronDown, ChevronUp,
-  Users, Mail, Phone, Building2, Calendar, MessageSquare,
+  Users, Mail, Phone, Building2, Calendar, MessageSquare, FileText,
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useApi } from '../../hooks/useApi'
@@ -16,7 +16,7 @@ import { fadeInItem, fadeInList } from '../../lib/motion'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'nueva' | 'web'
+type Tab = 'nueva' | 'historial' | 'web'
 
 interface QuoteItem {
   id: string
@@ -220,6 +220,7 @@ function ContactRow({ contact }: { contact: LandingContact }) {
 export function QuotesPage() {
   const { get } = useApi()
   const toast = useToast()
+  const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('nueva')
 
   // ── Nueva cotización ─────────────────────────────────────────────────────
@@ -311,13 +312,21 @@ export function QuotesPage() {
       a.download = filename
       a.click()
       URL.revokeObjectURL(url)
-      toast.success('Cotización descargada')
+      toast.success('Cotización descargada y guardada en el historial')
+      qc.invalidateQueries({ queryKey: ['quotations-all'] })
     } catch (err: any) {
       toast.error(err?.message || 'Error al generar la cotización')
     } finally {
       setDownloading(false)
     }
   }
+
+  // ── Historial de cotizaciones ────────────────────────────────────────────
+  const { data: savedQuotations = [], isLoading: loadingQuotations } = useQuery<any[]>({
+    queryKey: ['quotations-all'],
+    queryFn: () => get<any[]>('/api/quotations'),
+    enabled: tab === 'historial',
+  })
 
   // ── Solicitudes web ──────────────────────────────────────────────────────
   const [webTab, setWebTab] = useState('')
@@ -332,6 +341,7 @@ export function QuotesPage() {
   // ── Tabs ─────────────────────────────────────────────────────────────────
   const TABS: { key: Tab; label: string }[] = [
     { key: 'nueva', label: 'Nueva cotización' },
+    { key: 'historial', label: 'Historial' },
     { key: 'web', label: 'Solicitudes web' },
   ]
 
@@ -548,6 +558,91 @@ export function QuotesPage() {
                   Descargar cotización
                 </Button>
               </div>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* ── Tab: Historial de cotizaciones ───────────────────────────── */}
+        {tab === 'historial' && (
+          <motion.div
+            key="historial"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0, transition: { duration: 0.18, ease: 'easeOut' } }}
+            exit={{ opacity: 0, y: -4, transition: { duration: 0.12 } }}
+            className="space-y-4"
+          >
+            <Card>
+              {loadingQuotations ? (
+                <div className="py-16 text-center" style={{ color: 'var(--color-text-muted)' }}>Cargando...</div>
+              ) : savedQuotations.length === 0 ? (
+                <div className="py-16 text-center">
+                  <FileText className="h-10 w-10 mx-auto mb-3" style={{ color: 'var(--color-border)' }} />
+                  <p className="font-medium text-[14px]" style={{ color: 'var(--color-text-muted)' }}>
+                    No hay cotizaciones guardadas aún
+                  </p>
+                  <p className="text-[13px] mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                    Las cotizaciones se guardan automáticamente al generarlas con un cliente seleccionado
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {savedQuotations.map((q: any) => {
+                    const companyName = q.clients?.company_name || '—'
+                    const qDate = new Date(q.fecha + 'T12:00:00').toLocaleDateString('es-MX', {
+                      day: '2-digit', month: 'long', year: 'numeric',
+                    })
+                    const createdAt = new Date(q.created_at).toLocaleDateString('es-MX', {
+                      day: '2-digit', month: 'short', year: 'numeric',
+                    })
+                    const qTotal = Number(q.total).toLocaleString('es-MX', {
+                      style: 'currency', currency: 'MXN',
+                    })
+                    return (
+                      <div
+                        key={q.id}
+                        className="rounded-xl px-5 py-4"
+                        style={{ border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-[14px] truncate" style={{ color: 'var(--color-text-primary)' }}>
+                              {companyName}
+                            </p>
+                            <p className="text-[12px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                              {q.temporada_label} · Fecha: {qDate}
+                            </p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="font-bold text-[15px]" style={{ color: 'var(--color-text-primary)' }}>
+                              {qTotal}
+                            </p>
+                            <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                              Creada el {createdAt}
+                            </p>
+                          </div>
+                        </div>
+                        {Array.isArray(q.items) && q.items.length > 0 && (
+                          <div
+                            className="mt-3 pt-3 grid gap-y-1"
+                            style={{ borderTop: '1px solid var(--color-border)' }}
+                          >
+                            {(q.items as any[]).map((item: any, idx: number) => (
+                              <div key={idx} className="flex justify-between items-center text-[12px]">
+                                <span style={{ color: 'var(--color-text-secondary)' }}>
+                                  {item.cantidad}× {item.descripcion}
+                                </span>
+                                <span className="font-medium ml-4 flex-shrink-0" style={{ color: 'var(--color-text-primary)' }}>
+                                  {Number(item.precio_unitario).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </Card>
           </motion.div>
         )}
